@@ -434,7 +434,7 @@
     </div>
     
     <!-- 턴 상태 -->
-    <div id="turn-status" class="waiting" role="status" aria-live="assertive">
+    <div id="turn-status" class="waiting" role="status">
         게임 준비 중...
     </div>
     
@@ -446,14 +446,14 @@
     
     <!-- H2: 현재 바닥 -->
     <h2 id="table-heading">현재 바닥</h2>
-    <div class="card-area" id="table-area" role="region" aria-labelledby="table-heading" aria-live="polite">
+    <div class="card-area" id="table-area" role="region" aria-labelledby="table-heading">
         <p id="table-description">바닥이 비었습니다.</p>
     </div>
     
     <!-- H2: 선택한 카드 (플레이어 전용) -->
     <div id="player-controls">
         <h2 id="selection-heading">선택한 카드</h2>
-        <div id="selection-info" role="status" aria-labelledby="selection-heading" aria-live="polite">
+        <div id="selection-info" role="status" aria-labelledby="selection-heading">
             선택된 카드가 없습니다.
         </div>
         
@@ -473,11 +473,20 @@
             <button id="btn-pass" class="btn-pass" onclick="passTurn()">패스 (Alt+X)</button>
             <button id="btn-clear" class="btn-clear" onclick="clearSelection()">선택 취소 (Alt+C)</button>
         </div>
+        
+        <!-- 리턴 버튼 (마인 발생 시 표시) -->
+        <div id="return-panel" style="display:none; margin-top:15px; padding:15px; background:#e74c3c; border-radius:10px;">
+            <div id="return-message" style="font-weight:bold; margin-bottom:10px;"></div>
+            <button id="btn-return" onclick="doReturn()" style="background:#27ae60; font-size:1.2em; padding:15px 30px;">
+                🔄 리턴하기 (Alt+R)
+            </button>
+            <div id="return-timer" style="margin-top:10px; font-size:1.1em;"></div>
+        </div>
     </div>
     
     <!-- H2: 게임 로그 -->
     <h2 id="log-heading">진행 기록</h2>
-    <div id="log" role="log" aria-labelledby="log-heading" aria-live="polite"></div>
+    <div id="log" role="log" aria-labelledby="log-heading"></div>
     
     <!-- H2: 채팅 -->
     <h2 id="chat-heading">채팅 <span style="font-size:0.7em; color:#888; font-weight:normal;">(Alt+T: 입력, Alt+M: 읽기)</span></h2>
@@ -563,6 +572,10 @@
     let isAIGame = false;
     let aiThinking = false;  // AI 처리 중복 방지
     let skipNextGameAnnounce = false;  // 채팅 알림 후 게임 알림 스킵
+    
+    // 마인/리턴 관련 변수
+    let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
+    const RETURN_WAIT_TIME = 7;  // 리턴 대기 시간 (초)
 
     // 전역 함수 노출
     window.createRoom = createRoom;
@@ -583,6 +596,7 @@
     window.switchTab = switchTab;
     window.startAIGame = startAIGame;
     window.addAIPlayer = addAIPlayer;
+    window.doReturn = doReturn;
 
     // ==================== 탭 메뉴 ====================
     const tabNames = {
@@ -1170,7 +1184,7 @@
                 playSound('chat');
                 skipNextGameAnnounce = true;  // 게임 알림 스킵
                 announce(`${lastMsg.name}: ${lastMsg.text}`);
-                setTimeout(() => { skipNextGameAnnounce = false; }, 500);
+                setTimeout(() => { skipNextGameAnnounce = false; }, 1500);
             }
         }
         lastChatCount = sorted.length;
@@ -1215,7 +1229,7 @@
         // 내가 보낸 메시지 읽기
         skipNextGameAnnounce = true;
         announce(`나: ${text}`);
-        setTimeout(() => { skipNextGameAnnounce = false; }, 500);
+        setTimeout(() => { skipNextGameAnnounce = false; }, 1500);
         
         input.value = '';
         input.focus();
@@ -1494,7 +1508,15 @@
                     announce(`${playerName}: ${moveDesc}`);
                 }
                 logMessage(`${playerName}: ${moveDesc}`);
+                
+                // 마인 발생 시 리턴 패널 표시
+                if (gs.lastMove.isMine && gs.lastMoveBy !== myPlayerId) {
+                    showReturnPanel(gs.lastMove.val, playerName);
+                }
             }
+        } else {
+            // 바닥이 비면 리턴 패널 숨김
+            hideReturnPanel();
         }
         
         // 패스 알림 (관전자는 모든 패스, 플레이어는 상대 패스만)
@@ -1509,20 +1531,9 @@
             }
         }
         
-        // 턴 변경 알림 (관전자는 누구 턴인지 알림)
-        if (isSpectator) {
-            const turnPlayerName = players[currentTurn]?.name || currentTurn;
-            // 턴이 바뀌었을 때만 알림
-            if (wasMyTurn !== isMyTurn || currentTurn !== gs.currentTurn) {
-                if (!skipNextGameAnnounce) {
-                    announce(`${turnPlayerName}의 차례입니다.`);
-                }
-            }
-        } else if (!wasMyTurn && isMyTurn) {
+        // 턴 변경 시 사운드만 (알림은 카드 낸 정보로 충분)
+        if (!isSpectator && !wasMyTurn && isMyTurn && !gs.lastMove?.isMine) {
             playSound('myturn');
-            if (!skipNextGameAnnounce) {
-                announce("당신의 차례입니다.");
-            }
         }
         
         // UI 업데이트
@@ -1537,6 +1548,17 @@
                 const firstCard = document.querySelector('.card');
                 if (firstCard) firstCard.focus();
             }, 100);
+        }
+        
+        // 마인 후 마인 한 사람에게 턴 돌아오면 바닥 비우기 (방장만 처리)
+        if (myPlayerId === 'player1' && data.status === 'playing' && gs.lastMove?.isMine && gs.lastMove?.mineBy === gs.currentTurn) {
+            // 바닥 비우기
+            update(ref(db, `rooms/${currentRoom}/gameState`), {
+                lastMove: null,
+                lastMoveBy: null
+            });
+            const mineName = players[gs.currentTurn]?.name || gs.currentTurn;
+            logMessage(`${mineName}: 마인 성공, 선 유지`);
         }
         
         // AI 턴 처리 (방장만 실행)
@@ -1679,6 +1701,10 @@
                 case 's': case 'S': 
                     e.preventDefault(); 
                     announceStatus(); 
+                    return;
+                case 'r': case 'R':
+                    e.preventDefault();
+                    doReturn();
                     return;
             }
         }
@@ -1873,6 +1899,14 @@
     function getMoveDescription(move) {
         if (!move) return '';
         
+        // 마인/리턴은 별도 형식
+        if (move.isMine) {
+            return `${move.val}마인`;
+        }
+        if (move.isReturn) {
+            return `${move.val}리턴`;
+        }
+        
         switch (move.type) {
             case 'SINGLE':
                 return `${move.val} 싱글`;
@@ -1961,19 +1995,21 @@
             return;
         }
         
-        // 마인 체크: 싱글 바닥에 같은 숫자 페어 → 선 가져옴
+        // 마인 체크: 싱글 바닥에 같은 숫자 페어 → 턴 넘김 (리턴 기회 줌)
         if (lastMove && lastMove.type === 'SINGLE' && move.type === 'PAIR' && move.val === lastMove.val) {
-            announce(`마인! 선 가져옴!`);
-            logMessage(`나: ${getMoveDescription(move)} (마인)`);
+            announce(`${move.val}마인!`);
+            logMessage(`나: ${move.val}마인`);
             move.isMine = true;
-            await submitMove(move, true);  // 턴 유지
+            move.mineBy = myPlayerId;  // 누가 마인했는지 저장
+            await submitMove(move, false);  // 턴 넘김
             return;
         }
         
         // 리턴 체크: 마인 페어 바닥에 같은 숫자 싱글 → 선 가져옴
         if (lastMove && lastMove.isMine && lastMove.type === 'PAIR' && move.type === 'SINGLE' && move.val === lastMove.val) {
-            announce(`리턴! 선 가져옴!`);
-            logMessage(`나: ${getMoveDescription(move)} (리턴)`);
+            announce(`${move.val}리턴!`);
+            logMessage(`나: ${move.val}리턴`);
+            move.isReturn = true;
             await submitMove(move, true);  // 턴 유지
             return;
         }
@@ -2044,7 +2080,7 @@
         }
         
         announce('패스했습니다.');
-        logMessage('⏭️ 패스');
+        logMessage('나: 패스');
         
         const nextTurn = getNextTurn(myPlayerId);
         
@@ -2056,6 +2092,111 @@
         });
         
         clearSelection();
+    }
+
+    // ==================== 마인/리턴 처리 ====================
+    function showReturnPanel(mineVal, mineByName) {
+        // 내 패에 해당 숫자가 있는지 확인
+        const hasReturnCard = myHand.some(card => getCardValue(card) === mineVal);
+        
+        const panel = document.getElementById('return-panel');
+        const message = document.getElementById('return-message');
+        const btn = document.getElementById('btn-return');
+        const timer = document.getElementById('return-timer');
+        
+        if (!hasReturnCard || isSpectator) {
+            panel.style.display = 'none';
+            return;
+        }
+        
+        message.textContent = `${mineByName}의 ${mineVal}마인! 리턴하시겠습니까?`;
+        btn.disabled = false;
+        panel.style.display = 'block';
+        
+        // 포커스를 리턴 버튼으로 (알림 없이)
+        setTimeout(() => btn.focus(), 100);
+        
+        // 타이머 시작
+        let remaining = RETURN_WAIT_TIME;
+        timer.textContent = `남은 시간: ${remaining}초`;
+        
+        if (mineState?.timer) {
+            clearInterval(mineState.timer);
+        }
+        
+        const timerInterval = setInterval(() => {
+            remaining--;
+            timer.textContent = `남은 시간: ${remaining}초`;
+            
+            if (remaining <= 0) {
+                clearInterval(timerInterval);
+                hideReturnPanel();
+            }
+        }, 1000);
+        
+        mineState = { val: mineVal, timer: timerInterval };
+    }
+    
+    function hideReturnPanel() {
+        const panel = document.getElementById('return-panel');
+        if (panel) panel.style.display = 'none';
+        
+        if (mineState?.timer) {
+            clearInterval(mineState.timer);
+        }
+        mineState = null;
+    }
+    
+    async function doReturn() {
+        if (!mineState || !lastMove?.isMine) {
+            announce('리턴할 수 없습니다.');
+            return;
+        }
+        
+        const returnVal = mineState.val;
+        
+        // 해당 숫자 카드 찾기
+        const returnCardIndex = myHand.findIndex(card => getCardValue(card) === returnVal);
+        if (returnCardIndex === -1) {
+            announce('리턴할 카드가 없습니다.');
+            return;
+        }
+        
+        hideReturnPanel();
+        
+        const returnCard = myHand[returnCardIndex];
+        const move = {
+            type: 'SINGLE',
+            val: returnVal,
+            cnt: 1,
+            isReturn: true
+        };
+        
+        const newHand = myHand.filter((_, i) => i !== returnCardIndex);
+        
+        announce(`${returnVal}리턴!`);
+        logMessage(`나: ${returnVal}리턴`);
+        
+        const updates = {
+            [`gameState/hands/${myPlayerId}`]: newHand,
+            'gameState/lastMove': move,
+            'gameState/lastMoveBy': myPlayerId,
+            'gameState/passedBy': null,
+            'gameState/currentTurn': myPlayerId  // 리턴은 턴 유지
+        };
+        
+        // 완주 체크
+        if (newHand.length === 0) {
+            const currentFinished = finishedPlayers.length;
+            const myRank = currentFinished + 1;
+            
+            updates[`players/${myPlayerId}/finished`] = true;
+            updates[`players/${myPlayerId}/rank`] = myRank;
+            updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
+        }
+        
+        await update(ref(db, `rooms/${currentRoom}`), updates);
+        playSound('play');
     }
 
     // ==================== 결과 표시 ====================
@@ -2151,6 +2292,7 @@
     function backToLobby() {
         if (roomListener) roomListener();
         if (chatListener) chatListener();
+        hideReturnPanel();
         currentRoom = null;
         myPlayerId = null;
         myHand = [];
@@ -2168,6 +2310,7 @@
         isAIGame = false;
         aiThinking = false;
         skipNextGameAnnounce = false;
+        mineState = null;
         
         document.getElementById('result-modal').style.display = 'none';
         document.getElementById('game-container').style.display = 'none';
@@ -2245,7 +2388,7 @@
             await remove(ref(db, `rooms/${currentRoom}/joinRequests/${spectatorId}`));
             
             announce(`${spectatorName}님이 플레이어로 참가했습니다.`);
-            logMessage(`🎮 ${spectatorName} 플레이어 참가`);
+            logMessage(`${spectatorName} 플레이어 참가`);
             
             // 인원이 다 찼으면 게임 시작
             const updatedSnapshot = await get(ref(db, `rooms/${currentRoom}/players`));
@@ -2378,6 +2521,10 @@
             case 'q': case 'Q':
                 e.preventDefault();
                 toggleSound();
+                break;
+            case 'r': case 'R':
+                e.preventDefault();
+                doReturn();
                 break;
         }
     });
@@ -2568,6 +2715,51 @@
         
         // AI가 이미 완주했는지 확인
         if (playerInfo.finished) return;
+        
+        // 마인 상태일 때 처리
+        if (gs.lastMove?.isMine) {
+            const mineBy = gs.lastMove.mineBy;
+            const mineVal = gs.lastMove.val;
+            const aiHand = gs.hands[currentPlayer];
+            
+            // 마인 한 AI에게 턴이 돌아왔으면: 리턴 대기 후 바닥 비우고 진행
+            if (mineBy === currentPlayer) {
+                aiThinking = true;
+                // 리턴 대기 시간
+                setTimeout(async () => {
+                    await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                        lastMove: null,
+                        lastMoveBy: null
+                    });
+                    logMessage(`${playerInfo.name}: 마인 성공`);
+                    aiThinking = false;
+                }, RETURN_WAIT_TIME * 1000);
+                return;
+            }
+            
+            // 다른 AI가 리턴할 수 있으면 리턴
+            const hasReturnCard = aiHand?.some(card => getCardValue(card) === mineVal);
+            if (hasReturnCard) {
+                aiThinking = true;
+                const delay = 1000 + Math.random() * 2000;  // 1~3초 대기
+                setTimeout(async () => {
+                    const returnCardIndex = aiHand.findIndex(card => getCardValue(card) === mineVal);
+                    const newHand = aiHand.filter((_, i) => i !== returnCardIndex);
+                    const move = { type: 'SINGLE', val: mineVal, cnt: 1, isReturn: true };
+                    
+                    await update(ref(db, `rooms/${currentRoom}`), {
+                        [`gameState/hands/${currentPlayer}`]: newHand,
+                        'gameState/lastMove': move,
+                        'gameState/lastMoveBy': currentPlayer,
+                        'gameState/passedBy': null,
+                        'gameState/currentTurn': currentPlayer  // 리턴은 턴 유지
+                    });
+                    
+                    aiThinking = false;
+                }, delay);
+                return;
+            }
+        }
         
         aiThinking = true;
         
@@ -2894,8 +3086,13 @@
         const newHand = hand.filter((_, i) => !indices.includes(i));
         const playerName = roomData.players[playerId].name;
         
-        // 마인 또는 리턴이면 턴 유지
-        const keepTurn = move.isMine === true || move.isReturn === true;
+        // 마인이면 mineBy 설정
+        if (move.isMine) {
+            move.mineBy = playerId;
+        }
+        
+        // 리턴만 턴 유지, 마인은 턴 넘김 (리턴 기회 줌)
+        const keepTurn = move.isReturn === true;
         
         const updates = {
             [`gameState/hands/${playerId}`]: newHand,
@@ -2924,19 +3121,13 @@
                 updates['gameState/currentTurn'] = getNextTurnFrom(playerId, roomData);
             }
         } else if (keepTurn) {
-            // 마인/리턴: 턴 유지
+            // 리턴: 턴 유지
             updates['gameState/currentTurn'] = playerId;
         } else {
             updates['gameState/currentTurn'] = getNextTurnFrom(playerId, roomData);
         }
         
         await update(ref(db, `rooms/${currentRoom}`), updates);
-        
-        // 로그 메시지
-        let logSuffix = '';
-        if (move.isMine) logSuffix = ' (마인)';
-        else if (move.isReturn) logSuffix = ' (리턴)';
-        logMessage(`${playerName}: ${getMoveDescription(move)}${logSuffix}`);
     }
     
     // AI 패스
@@ -2950,8 +3141,6 @@
             lastMoveBy: null,
             passedBy: playerId
         });
-        
-        logMessage(`${playerName}: 패스`);
     }
     
     // 다음 턴 계산 (roomData 기반)
