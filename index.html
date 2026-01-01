@@ -253,12 +253,48 @@
             .btn-pass:hover { background: #0f3460; }
             .btn-clear:hover { background: #6c5ce7; }
         }
+        
+        /* 토스트 알림 */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #e74c3c;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+        }
+        .toast.info { background: #3498db; }
+        .toast.warning { background: #e67e22; }
+        .toast.success { background: #27ae60; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body>
 
 <!-- 연결 상태 표시 -->
 <div id="connection-status" class="offline" role="status" aria-live="polite">연결 중...</div>
+
+<!-- 토스트 알림 컨테이너 -->
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
 
 <!-- 스크린 리더 알림 (이중 영역으로 확실한 출력) -->
 <div id="live-announcer-1" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
@@ -884,6 +920,20 @@
         
         // 메시지 설정
         announcer.textContent = message;
+    }
+    
+    // 토스트 알림 (3초 후 자동 닫힘)
+    function showToast(message, type = 'warning') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        
+        // 3초 후 제거
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 
     function generateRoomCode() {
@@ -2192,6 +2242,7 @@
         if (myHand.length !== 3) return;
         
         const myName = players[myPlayerId]?.name || '나';
+        showToast(`📢 ${myName}: 3카드!`, 'warning');
         announce(`${myName}: 3카드!`);
         logMessage(`${myName}: 3카드!`);
         playSound('warning');
@@ -3239,6 +3290,7 @@
         // 3카드 알림 (3장 남으면)
         if (newHand.length === 3) {
             setTimeout(() => {
+                showToast(`📢 ${playerName}: 3카드!`, 'warning');
                 announce(`${playerName}: 3카드!`);
                 logMessage(`${playerName}: 3카드!`);
                 playSound('warning');
