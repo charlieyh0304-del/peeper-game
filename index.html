@@ -562,9 +562,7 @@
     // AI 관련 변수
     let isAIGame = false;
     let aiThinking = false;  // AI 처리 중복 방지
-    
-    // 채팅 알림 중 게임 알림 차단
-    let chatAnnounceLock = false;
+    let skipNextGameAnnounce = false;  // 채팅 알림 후 게임 알림 스킵
 
     // 전역 함수 노출
     window.createRoom = createRoom;
@@ -843,12 +841,6 @@
         
         // 메시지 설정
         announcer.textContent = message;
-    }
-    
-    // 게임 진행 알림 (채팅 중에는 스킵)
-    function gameAnnounce(message) {
-        if (chatAnnounceLock) return;
-        announce(message);
     }
 
     function generateRoomCode() {
@@ -1176,9 +1168,9 @@
             
             if (lastMsg.senderId !== myId && lastMsg.type !== 'system') {
                 playSound('chat');
-                chatAnnounceLock = true;
+                skipNextGameAnnounce = true;  // 게임 알림 스킵
                 announce(`${lastMsg.name}: ${lastMsg.text}`);
-                setTimeout(() => { chatAnnounceLock = false; }, 1000);
+                setTimeout(() => { skipNextGameAnnounce = false; }, 500);
             }
         }
         lastChatCount = sorted.length;
@@ -1220,10 +1212,10 @@
         
         if (!text || !currentRoom) return;
         
-        // 채팅 알림 중 게임 알림 차단
-        chatAnnounceLock = true;
+        // 내가 보낸 메시지 읽기
+        skipNextGameAnnounce = true;
         announce(`나: ${text}`);
-        setTimeout(() => { chatAnnounceLock = false; }, 1000);
+        setTimeout(() => { skipNextGameAnnounce = false; }, 500);
         
         input.value = '';
         input.focus();
@@ -1497,8 +1489,10 @@
                 // 상대방 카드 낸 사운드
                 playSound('opponent');
                 
-                // 간략한 메시지
-                gameAnnounce(`${playerName}: ${moveDesc}`);
+                // 간략한 메시지 (채팅 알림 중이면 스킵)
+                if (!skipNextGameAnnounce) {
+                    announce(`${playerName}: ${moveDesc}`);
+                }
                 logMessage(`${playerName}: ${moveDesc}`);
             }
         }
@@ -1508,7 +1502,9 @@
             const shouldAnnounce = isSpectator || gs.passedBy !== myPlayerId;
             if (shouldAnnounce) {
                 const playerName = players[gs.passedBy]?.name || gs.passedBy;
-                gameAnnounce(`${playerName}: 패스`);
+                if (!skipNextGameAnnounce) {
+                    announce(`${playerName}: 패스`);
+                }
                 logMessage(`${playerName}: 패스`);
             }
         }
@@ -1518,11 +1514,15 @@
             const turnPlayerName = players[currentTurn]?.name || currentTurn;
             // 턴이 바뀌었을 때만 알림
             if (wasMyTurn !== isMyTurn || currentTurn !== gs.currentTurn) {
-                gameAnnounce(`${turnPlayerName}의 차례입니다.`);
+                if (!skipNextGameAnnounce) {
+                    announce(`${turnPlayerName}의 차례입니다.`);
+                }
             }
         } else if (!wasMyTurn && isMyTurn) {
             playSound('myturn');
-            gameAnnounce("당신의 차례입니다.");
+            if (!skipNextGameAnnounce) {
+                announce("당신의 차례입니다.");
+            }
         }
         
         // UI 업데이트
@@ -1612,7 +1612,8 @@
             
             const cardName = isJoker ? '조커' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
-            card.setAttribute('aria-label', `${cardName}, ${idx + 1}번째 카드, 총 ${myHand.length}장 중${isSelected ? ', 선택됨' : ''}`);
+            // 간략한 aria-label (숫자 + 선택 여부만)
+            card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
             card.textContent = isJoker ? 'X' : actualValue;
             
             card.addEventListener('click', () => {
@@ -1620,14 +1621,9 @@
             });
             card.addEventListener('keydown', (e) => handleCardKeydown(e, idx));
             
-            // 포커스 시 상태 알림 (스크린 리더가 aria-label 읽은 후)
+            // 포커스 시 숫자만 알림
             card.addEventListener('focus', () => {
                 currentFocusIndex = idx;
-                const selected = selectedIndices.includes(idx);
-                // 지연 후 알림 (aria-label 읽기 완료 후)
-                setTimeout(() => {
-                    announce(`${cardName}, ${idx + 1}번째, 총 ${myHand.length}장${selected ? ', 선택됨' : ''}`);
-                }, 150);
             });
             
             handDiv.appendChild(card);
@@ -1649,13 +1645,13 @@
         if (selectedIndices.includes(idx)) {
             selectedIndices = selectedIndices.filter(i => i !== idx);
             card.setAttribute('aria-selected', 'false');
-            card.setAttribute('aria-label', `${cardName}, ${idx + 1}번째 카드, 총 ${myHand.length}장 중`);
-            announce(`${cardName} 선택 해제. 현재 ${selectedIndices.length}장 선택됨.`);
+            card.setAttribute('aria-label', `${cardName}`);
+            announce(`${cardName} 해제`);
         } else {
             selectedIndices.push(idx);
             card.setAttribute('aria-selected', 'true');
-            card.setAttribute('aria-label', `${cardName}, ${idx + 1}번째 카드, 총 ${myHand.length}장 중, 선택됨`);
-            announce(`${cardName} 선택. 현재 ${selectedIndices.length}장 선택됨.`);
+            card.setAttribute('aria-label', `${cardName}, 선택됨`);
+            announce(`${cardName} 선택`);
         }
         
         updateSelectionInfo();
@@ -1793,12 +1789,12 @@
                 const num = myHand[idx];
                 const actualValue = getCardValue(num);
                 const cardName = actualValue === 16 ? '조커' : (isRedOne(num) ? '빨간 1' : actualValue);
-                card.setAttribute('aria-label', `${cardName}, ${idx + 1}번째 카드, 총 ${myHand.length}장 중`);
+                card.setAttribute('aria-label', `${cardName}`);
             }
         });
         selectedIndices = [];
         updateSelectionInfo();
-        announce('선택 취소됨.');
+        announce('선택 취소');
     }
 
     // ==================== 카드 판정 ====================
@@ -1809,6 +1805,7 @@
         let sorted = [...cards].map(c => getCardValue(c)).sort((a, b) => a - b);
         let count = sorted.length;
         
+        // 같은 숫자 전부
         if (sorted.every(c => c === sorted[0])) {
             if (count === 4) return { type: 'BOMB_TWO', val: sorted[0], cnt: 4 };  // 4장 = BOMB TWO
             if (count === 3) return { type: 'BOMB', val: sorted[0], cnt: 3 };       // 3장 = BOMB
@@ -1816,11 +1813,36 @@
             if (count === 1) return { type: 'SINGLE', val: sorted[0], cnt: 1 };
         }
         
+        // 일반 스트레이트 (연속된 숫자 1장씩)
         let isStr = true;
         for (let i = 0; i < count - 1; i++) {
             if (sorted[i] + 1 !== sorted[i + 1]) isStr = false;
         }
         if (isStr && count >= 3) return { type: 'STRAIGHT', val: sorted[0], cnt: count };
+        
+        // 페어 스트레이트 (연속된 숫자 2장씩, 예: 3,3,4,4,5,5)
+        if (count >= 4 && count % 2 === 0) {
+            let isPairStr = true;
+            const pairCount = count / 2;
+            
+            for (let i = 0; i < pairCount; i++) {
+                const idx = i * 2;
+                // 같은 숫자 2개씩인지 확인
+                if (sorted[idx] !== sorted[idx + 1]) {
+                    isPairStr = false;
+                    break;
+                }
+                // 다음 페어와 연속인지 확인
+                if (i < pairCount - 1 && sorted[idx] + 1 !== sorted[idx + 2]) {
+                    isPairStr = false;
+                    break;
+                }
+            }
+            
+            if (isPairStr) {
+                return { type: 'PAIR_STRAIGHT', val: sorted[0], cnt: count, pairCount: pairCount };
+            }
+        }
         
         return null;
     }
@@ -1863,6 +1885,13 @@
                     values.push(move.val + i);
                 }
                 return `${values.join(', ')} 스트레이트`;
+            case 'PAIR_STRAIGHT':
+                // 페어 스트레이트 (예: 3,4,5 페어스트레이트)
+                const pairValues = [];
+                for (let i = 0; i < move.pairCount; i++) {
+                    pairValues.push(move.val + i);
+                }
+                return `${pairValues.join(', ')} 페어스트레이트`;
             case 'BOMB':
                 return `${move.val}밤`;
             case 'BOMB_TWO':
@@ -1932,11 +1961,20 @@
             return;
         }
         
-        // 리턴 체크
-        if (lastMove && lastMove.type === 'SINGLE' && move.type === 'SINGLE' && move.val === lastMove.val) {
-            announce(`리턴! 다시 내 턴!`);
+        // 마인 체크: 싱글 바닥에 같은 숫자 페어 → 선 가져옴
+        if (lastMove && lastMove.type === 'SINGLE' && move.type === 'PAIR' && move.val === lastMove.val) {
+            announce(`마인! 선 가져옴!`);
+            logMessage(`나: ${getMoveDescription(move)} (마인)`);
+            move.isMine = true;
+            await submitMove(move, true);  // 턴 유지
+            return;
+        }
+        
+        // 리턴 체크: 마인 페어 바닥에 같은 숫자 싱글 → 선 가져옴
+        if (lastMove && lastMove.isMine && lastMove.type === 'PAIR' && move.type === 'SINGLE' && move.val === lastMove.val) {
+            announce(`리턴! 선 가져옴!`);
             logMessage(`나: ${getMoveDescription(move)} (리턴)`);
-            await submitMove(move, true);
+            await submitMove(move, true);  // 턴 유지
             return;
         }
         
@@ -2129,7 +2167,7 @@
         prevGameStatus = null;
         isAIGame = false;
         aiThinking = false;
-        chatAnnounceLock = false;
+        skipNextGameAnnounce = false;
         
         document.getElementById('result-modal').style.display = 'none';
         document.getElementById('game-container').style.display = 'none';
@@ -2361,10 +2399,9 @@
             return;
         }
         
-        // 최근 3개 메시지 읽기
-        const recent = Array.from(messages).slice(-3);
-        const text = recent.map(msg => msg.textContent.trim()).join('. ');
-        announce(`최근 채팅: ${text}`);
+        // 마지막 메시지만 읽기
+        const lastMsg = messages[messages.length - 1];
+        announce(lastMsg.textContent.trim());
     }
 
     // ==================== AI 대전 모드 (Firebase 연동) ====================
@@ -2599,8 +2636,15 @@
         for (let i = 0; i < handLength; i++) {
             const cards = [hand[i]];
             const move = getMoveInfo(cards);
-            if (move && canBeatMove(move, lastMove)) {
-                validMoves.push({ indices: [i], move, cards });
+            if (move) {
+                // 일반 싱글 또는 리턴 (마인 페어에 같은 값 싱글)
+                if (canBeatMove(move, lastMove)) {
+                    validMoves.push({ indices: [i], move, cards });
+                } else if (lastMove && lastMove.isMine && lastMove.type === 'PAIR' && move.val === lastMove.val) {
+                    // 리턴
+                    move.isReturn = true;
+                    validMoves.push({ indices: [i], move, cards });
+                }
             }
         }
         
@@ -2609,8 +2653,15 @@
             for (let j = i + 1; j < handLength; j++) {
                 const cards = [hand[i], hand[j]];
                 const move = getMoveInfo(cards);
-                if (move && move.type === 'PAIR' && canBeatMove(move, lastMove)) {
-                    validMoves.push({ indices: [i, j], move, cards });
+                if (move && move.type === 'PAIR') {
+                    // 일반 페어 또는 마인 (싱글에 같은 값 페어)
+                    if (canBeatMove(move, lastMove)) {
+                        validMoves.push({ indices: [i, j], move, cards });
+                    } else if (lastMove && lastMove.type === 'SINGLE' && move.val === lastMove.val) {
+                        // 마인
+                        move.isMine = true;
+                        validMoves.push({ indices: [i, j], move, cards });
+                    }
                 }
             }
         }
@@ -2660,6 +2711,51 @@
             }
         }
         
+        // 페어 스트레이트 (연속된 숫자 2장씩)
+        // 값별로 인덱스 그룹핑
+        const valueGroups = {};
+        for (let i = 0; i < handLength; i++) {
+            const val = getCardValue(hand[i]);
+            if (!valueGroups[val]) valueGroups[val] = [];
+            valueGroups[val].push(i);
+        }
+        
+        // 연속된 값들 중 2개 이상 있는 것들 찾기
+        const pairableValues = Object.keys(valueGroups)
+            .map(Number)
+            .filter(v => valueGroups[v].length >= 2)
+            .sort((a, b) => a - b);
+        
+        // 페어 스트레이트 조합 (2~4개 연속 페어 = 4~8장)
+        for (let pairLen = 2; pairLen <= 4; pairLen++) {
+            for (let startIdx = 0; startIdx <= pairableValues.length - pairLen; startIdx++) {
+                // 연속인지 확인
+                let isConsecutive = true;
+                for (let i = 0; i < pairLen - 1; i++) {
+                    if (pairableValues[startIdx + i] + 1 !== pairableValues[startIdx + i + 1]) {
+                        isConsecutive = false;
+                        break;
+                    }
+                }
+                
+                if (isConsecutive) {
+                    const indices = [];
+                    const cards = [];
+                    for (let i = 0; i < pairLen; i++) {
+                        const val = pairableValues[startIdx + i];
+                        // 각 값에서 2장씩 선택
+                        indices.push(valueGroups[val][0], valueGroups[val][1]);
+                        cards.push(hand[valueGroups[val][0]], hand[valueGroups[val][1]]);
+                    }
+                    
+                    const move = getMoveInfo(cards);
+                    if (move && move.type === 'PAIR_STRAIGHT' && canBeatMove(move, lastMove)) {
+                        validMoves.push({ indices, move, cards });
+                    }
+                }
+            }
+        }
+        
         return validMoves;
     }
     
@@ -2685,6 +2781,21 @@
         // 4. 스트레이트는 좋음 (여러 장 처리)
         if (move.type === 'STRAIGHT') {
             score += 15;
+        }
+        
+        // 4-1. 페어 스트레이트도 좋음
+        if (move.type === 'PAIR_STRAIGHT') {
+            score += 20;
+        }
+        
+        // 4-2. 마인은 매우 좋음 (선 가져옴)
+        if (move.isMine) {
+            score += 50;
+        }
+        
+        // 4-3. 리턴도 좋음 (선 가져옴)
+        if (move.isReturn) {
+            score += 50;
         }
         
         // 5. 바닥이 없으면 (새 턴) 낮은 싱글 우선
@@ -2724,11 +2835,6 @@
                 if (move.type === 'BOMB') score += 40;
                 if (move.type === 'BOMB_TWO') score += 60;
             }
-        }
-        
-        // 9. 리턴 가능하면 보너스 (턴 유지)
-        if (lastMove && lastMove.type === 'SINGLE' && move.type === 'SINGLE' && move.val === lastMove.val) {
-            score += 30;
         }
         
         return score;
@@ -2788,6 +2894,9 @@
         const newHand = hand.filter((_, i) => !indices.includes(i));
         const playerName = roomData.players[playerId].name;
         
+        // 마인 또는 리턴이면 턴 유지
+        const keepTurn = move.isMine === true || move.isReturn === true;
+        
         const updates = {
             [`gameState/hands/${playerId}`]: newHand,
             'gameState/lastMove': move,
@@ -2814,12 +2923,20 @@
             } else {
                 updates['gameState/currentTurn'] = getNextTurnFrom(playerId, roomData);
             }
+        } else if (keepTurn) {
+            // 마인/리턴: 턴 유지
+            updates['gameState/currentTurn'] = playerId;
         } else {
             updates['gameState/currentTurn'] = getNextTurnFrom(playerId, roomData);
         }
         
         await update(ref(db, `rooms/${currentRoom}`), updates);
-        logMessage(`${playerName}: ${getMoveDescription(move)}`);
+        
+        // 로그 메시지
+        let logSuffix = '';
+        if (move.isMine) logSuffix = ' (마인)';
+        else if (move.isReturn) logSuffix = ' (리턴)';
+        logMessage(`${playerName}: ${getMoveDescription(move)}${logSuffix}`);
     }
     
     // AI 패스
