@@ -498,7 +498,7 @@
         </div>
         
         <div class="keyboard-help" aria-hidden="true">
-            [Tab: 카드 탐색] [←→: 이동] [Home/End: 처음/끝] [Space: 선택] [Alt+P: 내기] [Alt+X: 패스] [Alt+C: 취소] [Alt+S: 상황] [Alt+T: 채팅] [Alt+M: 최근 채팅] [Alt+Q: 사운드] [Esc: 채팅 종료]
+            [Tab: 카드 탐색] [←→: 이동] [Home/End: 처음/끝] [Space: 선택] [Alt+P: 내기] [Alt+X: 패스] [Alt+C: 취소] [Alt+S: 상황] [Alt+M: 마인] [Alt+R: 리턴] [Alt+T: 채팅] [Alt+L: 최근 채팅] [Alt+Q: 사운드]
         </div>
         
         <!-- H2: 게임 조작 -->
@@ -525,7 +525,7 @@
     <div id="log" aria-labelledby="log-heading"></div>
     
     <!-- H2: 채팅 -->
-    <h2 id="chat-heading">채팅 <span style="font-size:0.7em; color:#888; font-weight:normal;">(Alt+T: 입력, Alt+M: 읽기)</span></h2>
+    <h2 id="chat-heading">채팅 <span style="font-size:0.7em; color:#888; font-weight:normal;">(Alt+T: 입력, Alt+L: 읽기)</span></h2>
     <div id="chat-container">
         <div id="chat-messages"></div>
         <div id="chat-input-area">
@@ -633,6 +633,8 @@
     window.startAIGame = startAIGame;
     window.addAIPlayer = addAIPlayer;
     window.doReturn = doReturn;
+    window.callCards = callCards;
+    window.autoMine = autoMine;
 
     // ==================== 탭 메뉴 ====================
     const tabNames = {
@@ -1548,6 +1550,17 @@
         const prevLastMove = lastMove;
         lastMove = gs.lastMove;
         
+        // 선을 잡았을 때 (내가 낸 카드에 모두 패스해서 다시 내 턴) → 바닥 비우기
+        if (isMyTurn && gs.lastMoveBy === myPlayerId && gs.lastMove && !gs.lastMove.isMine) {
+            // 자동으로 바닥 비움
+            update(ref(db, `rooms/${currentRoom}/gameState`), {
+                lastMove: null,
+                lastMoveBy: null
+            });
+            logMessage('선을 잡았습니다!');
+            lastMove = null;
+        }
+        
         // 완주자 목록
         finishedPlayers = gs.finishedOrder || [];
         
@@ -1928,12 +1941,9 @@
         const jokerCount = jokerIndices.length;
         const sortedNormal = [...normalCards].sort((a, b) => a - b);
         
-        // X 싱글 → 숫자 물어보기
+        // X 싱글 → 그냥 X(16)로 냄
         if (cards.length === 1 && jokerCount === 1) {
-            let input = prompt('X를 어떤 숫자로? (1~16)', '1');
-            let targetVal = parseInt(input);
-            if (isNaN(targetVal) || targetVal < 1 || targetVal > 16) targetVal = 1;
-            return [targetVal];
+            return [16];  // X 싱글
         }
         
         // X만으로 페어(2개), 밤(3개), 밤투(4개) → 숫자 물어보기
@@ -2227,12 +2237,26 @@
         
         const nextTurn = getNextTurn(myPlayerId);
         
-        await update(ref(db, `rooms/${currentRoom}/gameState`), {
-            currentTurn: nextTurn,
-            lastMove: null,
-            lastMoveBy: null,
-            passedBy: myPlayerId
-        });
+        // Firebase에서 현재 상태 가져오기
+        const snapshot = await get(ref(db, `rooms/${currentRoom}/gameState`));
+        const gs = snapshot.val();
+        
+        // 다음 턴이 카드를 낸 사람이면 → 선을 잡음 (바닥 비움)
+        if (gs?.lastMoveBy === nextTurn && gs?.lastMove && !gs?.lastMove?.isMine) {
+            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                currentTurn: nextTurn,
+                lastMove: null,
+                lastMoveBy: null,
+                passedBy: myPlayerId
+            });
+            logMessage(`${players[nextTurn]?.name || nextTurn}: 선을 잡음`);
+        } else {
+            // 일반 패스
+            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                currentTurn: nextTurn,
+                passedBy: myPlayerId
+            });
+        }
         
         clearSelection();
     }
@@ -2253,6 +2277,52 @@
     }
 
     // ==================== 마인/리턴 처리 ====================
+    
+    // 자동 마인 (Alt+M)
+    async function autoMine() {
+        if (currentTurn !== myPlayerId) {
+            announce('내 차례가 아닙니다.');
+            return;
+        }
+        
+        // 바닥이 싱글인지 확인
+        if (!lastMove || lastMove.type !== 'SINGLE') {
+            announce('마인할 수 없습니다. 바닥이 싱글이 아닙니다.');
+            return;
+        }
+        
+        const targetVal = lastMove.val;
+        
+        // 내 패에서 같은 숫자 2장 찾기
+        const matchingIndices = [];
+        myHand.forEach((card, idx) => {
+            if (getCardValue(card) === targetVal) {
+                matchingIndices.push(idx);
+            }
+        });
+        
+        if (matchingIndices.length < 2) {
+            announce(`마인할 수 없습니다. ${targetVal} 페어가 없습니다.`);
+            return;
+        }
+        
+        // 2장 선택해서 마인
+        const mineIndices = matchingIndices.slice(0, 2);
+        const cards = mineIndices.map(idx => myHand[idx]);
+        const move = getMoveInfo(cards);
+        
+        if (move && move.type === 'PAIR' && move.val === targetVal) {
+            // 마인 처리
+            selectedIndices = mineIndices;
+            move.isMine = true;
+            move.mineBy = myPlayerId;
+            
+            announce(`${move.val}마인!`);
+            logMessage(`나: ${move.val}마인`);
+            await submitMove(move, false);  // 턴 넘김
+        }
+    }
+    
     function showReturnPanel(mineVal, mineByName) {
         // 내 패에 해당 숫자가 있는지 확인
         const hasReturnCard = myHand.some(card => getCardValue(card) === mineVal);
@@ -2674,7 +2744,7 @@
                 e.preventDefault();
                 focusChatInput();
                 break;
-            case 'm': case 'M':
+            case 'l': case 'L':
                 e.preventDefault();
                 readRecentChat();
                 break;
@@ -2685,6 +2755,10 @@
             case 'r': case 'R':
                 e.preventDefault();
                 doReturn();
+                break;
+            case 'm': case 'M':
+                e.preventDefault();
+                autoMine();
                 break;
         }
     });
@@ -2876,6 +2950,28 @@
         // AI가 이미 완주했는지 확인
         if (playerInfo.finished) return;
         
+        // 선을 잡았을 때 (AI가 낸 카드에 모두 패스해서 다시 AI 턴) → 바닥 비우기
+        if (gs.lastMoveBy === currentPlayer && gs.lastMove && !gs.lastMove.isMine) {
+            aiThinking = true;
+            setTimeout(async () => {
+                await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                    lastMove: null,
+                    lastMoveBy: null
+                });
+                logMessage(`${playerInfo.name}: 선을 잡음`);
+                
+                // 바닥 비운 후 다시 AI 턴 처리
+                setTimeout(async () => {
+                    aiThinking = false;
+                    const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                    if (snapshot.exists()) {
+                        processAITurn(snapshot.val());
+                    }
+                }, 300);
+            }, 500);
+            return;
+        }
+        
         // 마인 상태일 때 처리
         if (gs.lastMove?.isMine) {
             const mineBy = gs.lastMove.mineBy;
@@ -2941,7 +3037,14 @@
                 aiThinking = true;
                 setTimeout(async () => {
                     await aiPass(currentPlayer, data);
-                    aiThinking = false;
+                    // 딜레이 후 다음 AI 턴 체크
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, 300);
                 }, 300);
                 return;
             }
@@ -2963,7 +3066,14 @@
                 // 패스할지 결정
                 if (shouldPass(aiHand, gs.lastMove, data)) {
                     await aiPass(currentPlayer, data);
-                    aiThinking = false;
+                    // 딜레이 후 aiThinking 해제 및 다음 AI 턴 체크
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, 300);
                     return;
                 }
                 
@@ -2975,11 +3085,19 @@
                 } else {
                     await aiPass(currentPlayer, data);
                 }
+                
+                // 딜레이 후 aiThinking 해제 및 다음 AI 턴 체크
+                setTimeout(async () => {
+                    aiThinking = false;
+                    const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                    if (snapshot.exists()) {
+                        processAITurn(snapshot.val());
+                    }
+                }, 300);
             } catch (error) {
                 console.error("AI 턴 처리 실패:", error);
+                aiThinking = false;
             }
-            
-            aiThinking = false;
         }, delay);
     }
     
@@ -3330,13 +3448,24 @@
     async function aiPass(playerId, roomData) {
         const playerName = roomData.players[playerId].name;
         const nextTurn = getNextTurnFrom(playerId, roomData);
+        const gs = roomData.gameState;
         
-        await update(ref(db, `rooms/${currentRoom}/gameState`), {
-            currentTurn: nextTurn,
-            lastMove: null,
-            lastMoveBy: null,
-            passedBy: playerId
-        });
+        // 다음 턴이 카드를 낸 사람이면 → 선을 잡음 (바닥 비움)
+        if (gs.lastMoveBy === nextTurn && gs.lastMove && !gs.lastMove.isMine) {
+            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                currentTurn: nextTurn,
+                lastMove: null,
+                lastMoveBy: null,
+                passedBy: playerId
+            });
+            logMessage(`${roomData.players[nextTurn]?.name || nextTurn}: 선을 잡음`);
+        } else {
+            // 일반 패스
+            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+                currentTurn: nextTurn,
+                passedBy: playerId
+            });
+        }
     }
     
     // 다음 턴 계산 (roomData 기반)
