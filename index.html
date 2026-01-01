@@ -471,6 +471,7 @@
             <button id="btn-play" onclick="playMove()">카드 내기 (Alt+P)</button>
             <button id="btn-pass" class="btn-pass" onclick="passTurn()">패스 (Alt+X)</button>
             <button id="btn-clear" class="btn-clear" onclick="clearSelection()">선택 취소 (Alt+C)</button>
+            <button id="btn-call" onclick="callCards()" style="background:#e67e22; display:none;">📢 3카드!</button>
         </div>
         
         <!-- 리턴 버튼 (마인 발생 시 표시) -->
@@ -574,7 +575,7 @@
     
     // 마인/리턴 관련 변수
     let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
-    const RETURN_WAIT_TIME = 7;  // 리턴 대기 시간 (초)
+    const RETURN_WAIT_TIME = 3;  // 리턴 대기 시간 (초)
 
     // 전역 함수 노출
     window.createRoom = createRoom;
@@ -634,7 +635,7 @@
             selectedPanel.removeAttribute('hidden');
             
             // 스크린 리더 알림
-            announce(`${tabNames[tabId]} 탭 선택됨`);
+            // announce 제거
         }
     }
     
@@ -838,7 +839,36 @@
 
     let currentAnnouncer = 1;  // 1 또는 2 번갈아 사용
     
+    // 게임 중 출력할 메시지 패턴
+    function shouldAnnounce(message) {
+        // 카드 내기 (나: ~, 닉네임: ~)
+        if (message.includes(': ')) {
+            const afterColon = message.split(': ')[1];
+            // 싱글, 페어, 스트레이트, 밤, 마인, 리턴, 패스, 3카드
+            if (afterColon && (
+                afterColon.includes('싱글') ||
+                afterColon.includes('페어') ||
+                afterColon.includes('스트레이트') ||
+                afterColon.includes('밤') ||
+                afterColon.includes('마인') ||
+                afterColon.includes('리턴') ||
+                afterColon.includes('3카드') ||
+                afterColon === '패스'
+            )) return true;
+            // 채팅 메시지 (위 패턴에 안 맞으면 채팅)
+            return true;
+        }
+        // 마인/리턴 알림
+        if (message.includes('마인') || message.includes('리턴')) return true;
+        // 게임 결과
+        if (message.includes('등') && (message.includes('승리') || message.includes('입니다'))) return true;
+        return false;
+    }
+    
     function announce(message) {
+        // 필터링
+        if (!shouldAnnounce(message)) return;
+        
         // 이전 announcer 비우기
         const prevNum = currentAnnouncer;
         const prevAnnouncer = document.getElementById(`live-announcer-${prevNum}`);
@@ -1482,8 +1512,7 @@
                 if (prevCount !== undefined && prevCount > 3 && currentCount === 3) {
                     const playerName = p.name || id;
                     playSound('warning');
-                    alert(`⚠️ ${playerName}의 타일이 3개 남았습니다!`);
-                    announce(`경고! ${playerName}의 타일이 3개 남았습니다!`);
+                    // alert 제거 (게임 멈춤 방지)
                 }
                 
                 // 현재 개수 저장
@@ -1508,8 +1537,8 @@
                 }
                 logMessage(`${playerName}: ${moveDesc}`);
                 
-                // 마인 발생 시 리턴 패널 표시
-                if (gs.lastMove.isMine && gs.lastMoveBy !== myPlayerId) {
+                // 마인 감지: moveDesc에 "마인"이 포함되어 있으면 마인
+                if (moveDesc.includes('마인') && gs.lastMoveBy !== myPlayerId) {
                     showReturnPanel(gs.lastMove.val, playerName);
                 }
             }
@@ -1631,7 +1660,7 @@
             // 모든 카드 Tab으로 탐색 가능
             card.setAttribute('tabindex', '0');
             
-            const cardName = isJoker ? '조커' : (isRed ? '빨간 1' : actualValue);
+            const cardName = isJoker ? 'X' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
             // 간략한 aria-label (숫자 + 선택 여부만)
             card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
@@ -1651,6 +1680,12 @@
         });
         
         document.getElementById('hand-count').textContent = myHand.length;
+        
+        // 3장 남으면 3카드 버튼 표시
+        const callBtn = document.getElementById('btn-call');
+        if (callBtn) {
+            callBtn.style.display = myHand.length === 3 ? 'inline-block' : 'none';
+        }
     }
 
     // ==================== 카드 선택 ====================
@@ -1661,7 +1696,7 @@
         const num = myHand[idx];
         const actualValue = getCardValue(num);
         const isRed = isRedOne(num);
-        const cardName = actualValue === 16 ? '조커' : (isRed ? '빨간 1' : actualValue);
+        const cardName = actualValue === 16 ? 'X' : (isRed ? '빨간 1' : actualValue);
         
         if (selectedIndices.includes(idx)) {
             selectedIndices = selectedIndices.filter(i => i !== idx);
@@ -1781,7 +1816,7 @@
             const selectedCards = selectedIndices.map(i => myHand[i]).sort((a, b) => getCardValue(a) - getCardValue(b));
             const cardNames = selectedCards.map(n => {
                 const val = getCardValue(n);
-                if (val === 16) return '조커';
+                if (val === 16) return 'X';
                 if (isRedOne(n)) return '빨간1';
                 return val;
             }).join(', ');
@@ -1815,7 +1850,7 @@
                 card.setAttribute('aria-selected', 'false');
                 const num = myHand[idx];
                 const actualValue = getCardValue(num);
-                const cardName = actualValue === 16 ? '조커' : (isRedOne(num) ? '빨간 1' : actualValue);
+                const cardName = actualValue === 16 ? 'X' : (isRedOne(num) ? '빨간 1' : actualValue);
                 card.setAttribute('aria-label', `${cardName}`);
             }
         });
@@ -1825,6 +1860,72 @@
     }
 
     // ==================== 카드 판정 ====================
+    // X(조커) 자동 대체 함수
+    function autoReplaceJokers(cards) {
+        const jokerIndices = [];
+        const normalCards = [];
+        
+        cards.forEach((card, idx) => {
+            if (getCardValue(card) === 16) {
+                jokerIndices.push(idx);
+            } else {
+                normalCards.push(getCardValue(card));
+            }
+        });
+        
+        if (jokerIndices.length === 0) return cards;
+        
+        const jokerCount = jokerIndices.length;
+        const sortedNormal = [...normalCards].sort((a, b) => a - b);
+        
+        // X 싱글 → 숫자 물어보기
+        if (cards.length === 1 && jokerCount === 1) {
+            let input = prompt('X를 어떤 숫자로? (1~16)', '1');
+            let targetVal = parseInt(input);
+            if (isNaN(targetVal) || targetVal < 1 || targetVal > 16) targetVal = 1;
+            return [targetVal];
+        }
+        
+        // X만으로 페어(2개), 밤(3개), 밤투(4개) → 숫자 물어보기
+        if (sortedNormal.length === 0 && jokerCount >= 2 && jokerCount <= 4) {
+            let input = prompt('X를 어떤 숫자로? (1~15)', '1');
+            let targetVal = parseInt(input);
+            if (isNaN(targetVal) || targetVal < 1 || targetVal > 15) targetVal = 1;
+            const result = [...cards];
+            jokerIndices.forEach(idx => result[idx] = targetVal);
+            return result;
+        }
+        
+        // 1장 + X 1장 → 페어만 가능 (일반카드 + X로 밤/밤투는 불가)
+        if (sortedNormal.length === 1 && jokerCount === 1) {
+            const val = sortedNormal[0];
+            const result = [...cards];
+            jokerIndices.forEach(idx => result[idx] = val);
+            return result;
+        }
+        
+        // 스트레이트/페어스트레이트 (3장 이상) → 각 X마다 숫자 물어보기
+        if (cards.length >= 3 && jokerCount > 0) {
+            const result = [...cards];
+            for (let i = 0; i < jokerCount; i++) {
+                let input = prompt(`${i + 1}번째 X를 어떤 숫자로? (1~16)`, '1');
+                let targetVal = parseInt(input);
+                if (isNaN(targetVal) || targetVal < 1 || targetVal > 16) targetVal = 1;
+                result[jokerIndices[i]] = targetVal;
+            }
+            return result;
+        }
+        
+        // 페어 시도 (2장)
+        if (cards.length === 2 && jokerCount === 1) {
+            const result = [...cards];
+            result[jokerIndices[0]] = sortedNormal[0];
+            return result;
+        }
+        
+        return cards;
+    }
+
     function getMoveInfo(cards) {
         if (cards.length === 0) return null;
         
@@ -1848,7 +1949,7 @@
         if (isStr && count >= 3) return { type: 'STRAIGHT', val: sorted[0], cnt: count };
         
         // 페어 스트레이트 (연속된 숫자 2장씩, 예: 3,3,4,4,5,5)
-        if (count >= 4 && count % 2 === 0) {
+        if (count >= 6 && count % 2 === 0) {
             let isPairStr = true;
             const pairCount = count / 2;
             
@@ -1977,17 +2078,8 @@
         
         let cards = selectedIndices.map(idx => myHand[idx]);
         
-        // 조커 처리 (조커 = 16)
-        let jokerCount = cards.filter(x => getCardValue(x) === 16).length;
-        if (jokerCount > 0) {
-            for (let i = 0; i < jokerCount; i++) {
-                let input = prompt(`${i + 1}번째 조커를 어떤 숫자로? (1~15)`, "1");
-                let targetVal = parseInt(input);
-                if (isNaN(targetVal) || targetVal < 1 || targetVal > 15) targetVal = 1;
-                let targetIdx = cards.findIndex(x => getCardValue(x) === 16);
-                cards[targetIdx] = targetVal;
-            }
-        }
+        // X(조커) 자동 대체
+        cards = autoReplaceJokers(cards);
         
         const move = getMoveInfo(cards);
         
@@ -2094,6 +2186,20 @@
         
         clearSelection();
     }
+    
+    // 3카드 알림
+    async function callCards() {
+        if (myHand.length !== 3) return;
+        
+        const myName = players[myPlayerId]?.name || '나';
+        announce(`${myName}: 3카드!`);
+        logMessage(`${myName}: 3카드!`);
+        playSound('warning');
+        
+        // 버튼 숨기기 (한 번만 알림)
+        const callBtn = document.getElementById('btn-call');
+        if (callBtn) callBtn.style.display = 'none';
+    }
 
     // ==================== 마인/리턴 처리 ====================
     function showReturnPanel(mineVal, mineByName) {
@@ -2149,55 +2255,57 @@
     }
     
     async function doReturn() {
-        if (!mineState || !lastMove?.isMine) {
-            announce('리턴할 수 없습니다.');
+        // 패널 먼저 숨김
+        const panel = document.getElementById('return-panel');
+        if (panel) panel.style.display = 'none';
+        
+        if (!mineState) {
             return;
         }
         
         const returnVal = mineState.val;
         
+        // 타이머 정리
+        if (mineState.timer) {
+            clearInterval(mineState.timer);
+        }
+        mineState = null;
+        
         // 해당 숫자 카드 찾기
         const returnCardIndex = myHand.findIndex(card => getCardValue(card) === returnVal);
         if (returnCardIndex === -1) {
-            announce('리턴할 카드가 없습니다.');
             return;
         }
         
-        hideReturnPanel();
-        
-        const returnCard = myHand[returnCardIndex];
-        const move = {
-            type: 'SINGLE',
-            val: returnVal,
-            cnt: 1,
-            isReturn: true
-        };
-        
         const newHand = myHand.filter((_, i) => i !== returnCardIndex);
         
-        announce(`${returnVal}리턴!`);
+        announce(`나: ${returnVal}리턴`);
         logMessage(`나: ${returnVal}리턴`);
         
-        const updates = {
-            [`gameState/hands/${myPlayerId}`]: newHand,
-            'gameState/lastMove': null,  // 바닥 비움 (새 카드 낼 수 있도록)
-            'gameState/lastMoveBy': myPlayerId,
-            'gameState/passedBy': null,
-            'gameState/currentTurn': myPlayerId  // 리턴은 턴 유지
-        };
-        
-        // 완주 체크
-        if (newHand.length === 0) {
-            const currentFinished = finishedPlayers.length;
-            const myRank = currentFinished + 1;
+        try {
+            const updates = {
+                [`gameState/hands/${myPlayerId}`]: newHand,
+                'gameState/lastMove': null,
+                'gameState/lastMoveBy': myPlayerId,
+                'gameState/passedBy': null,
+                'gameState/currentTurn': myPlayerId
+            };
             
-            updates[`players/${myPlayerId}/finished`] = true;
-            updates[`players/${myPlayerId}/rank`] = myRank;
-            updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
+            // 완주 체크
+            if (newHand.length === 0) {
+                const currentFinished = finishedPlayers.length;
+                const myRank = currentFinished + 1;
+                
+                updates[`players/${myPlayerId}/finished`] = true;
+                updates[`players/${myPlayerId}/rank`] = myRank;
+                updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
+            }
+            
+            await update(ref(db, `rooms/${currentRoom}`), updates);
+            playSound('play');
+        } catch (error) {
+            console.error("리턴 실패:", error);
         }
-        
-        await update(ref(db, `rooms/${currentRoom}`), updates);
-        playSound('play');
     }
 
     // ==================== 결과 표시 ====================
@@ -2726,7 +2834,7 @@
             // 마인 한 AI에게 턴이 돌아왔으면: 리턴 대기 후 바닥 비우고 진행
             if (mineBy === currentPlayer) {
                 aiThinking = true;
-                // 리턴 대기 시간
+                // 리턴 대기 시간 (짧게)
                 setTimeout(async () => {
                     await update(ref(db, `rooms/${currentRoom}/gameState`), {
                         lastMove: null,
@@ -2734,14 +2842,14 @@
                     });
                     logMessage(`${playerInfo.name}: 마인 성공`);
                     
-                    // 마인 성공 후 딜레이 후 다음 카드 내기
+                    // 마인 성공 후 바로 다음 카드 내기
                     setTimeout(async () => {
                         aiThinking = false;
                         const snapshot = await get(ref(db, `rooms/${currentRoom}`));
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 1000);
+                    }, 500);
                 }, RETURN_WAIT_TIME * 1000);
                 return;
             }
@@ -2750,7 +2858,7 @@
             const hasReturnCard = aiHand?.some(card => getCardValue(card) === mineVal);
             if (hasReturnCard) {
                 aiThinking = true;
-                const delay = 1000 + Math.random() * 2000;  // 1~3초 대기
+                const delay = 500 + Math.random() * 1000;  // 0.5~1.5초 대기
                 setTimeout(async () => {
                     const returnCardIndex = aiHand.findIndex(card => getCardValue(card) === mineVal);
                     const newHand = aiHand.filter((_, i) => i !== returnCardIndex);
@@ -2766,7 +2874,7 @@
                     
                     logMessage(`${playerInfo.name}: ${mineVal}리턴`);
                     
-                    // 리턴 후 딜레이 후 다음 카드 내기
+                    // 리턴 후 바로 다음 카드 내기
                     setTimeout(async () => {
                         aiThinking = false;
                         // Firebase에서 최신 데이터 가져와서 다음 카드 내기
@@ -2774,16 +2882,24 @@
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 1000);
+                    }, 500);
                 }, delay);
+                return;
+            } else {
+                // 리턴 못하면 바로 패스 (딜레이 최소화)
+                aiThinking = true;
+                setTimeout(async () => {
+                    await aiPass(currentPlayer, data);
+                    aiThinking = false;
+                }, 300);
                 return;
             }
         }
         
         aiThinking = true;
         
-        // 1~2초 랜덤 지연 후 AI 행동 (생각하는 듯한 느낌)
-        const delay = 1000 + Math.random() * 1500;
+        // 0.5~1초 랜덤 지연 후 AI 행동
+        const delay = 500 + Math.random() * 500;
         
         setTimeout(async () => {
             try {
@@ -2938,7 +3054,7 @@
             .sort((a, b) => a - b);
         
         // 페어 스트레이트 조합 (2~4개 연속 페어 = 4~8장)
-        for (let pairLen = 2; pairLen <= 4; pairLen++) {
+        for (let pairLen = 3; pairLen <= 4; pairLen++) {
             for (let startIdx = 0; startIdx <= pairableValues.length - pairLen; startIdx++) {
                 // 연속인지 확인
                 let isConsecutive = true;
@@ -3119,6 +3235,15 @@
             'gameState/lastMoveBy': playerId,
             'gameState/passedBy': null
         };
+        
+        // 3카드 알림 (3장 남으면)
+        if (newHand.length === 3) {
+            setTimeout(() => {
+                announce(`${playerName}: 3카드!`);
+                logMessage(`${playerName}: 3카드!`);
+                playSound('warning');
+            }, 500);
+        }
         
         // 완주 체크
         if (newHand.length === 0) {
