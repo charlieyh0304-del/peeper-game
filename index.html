@@ -433,8 +433,8 @@
         </div>
     </div>
     
-    <!-- 턴 상태 -->
-    <div id="turn-status" class="waiting" role="status">
+    <!-- 턴 상태 (스크린리더는 announce로만 알림) -->
+    <div id="turn-status" class="waiting" aria-hidden="true">
         게임 준비 중...
     </div>
     
@@ -445,16 +445,15 @@
     </div>
     
     <!-- H2: 현재 바닥 -->
-    <h2 id="table-heading">현재 바닥</h2>
-    <div class="card-area" id="table-area" role="region" aria-labelledby="table-heading">
+    <h2 id="table-heading" aria-hidden="true">바닥</h2>
+    <div class="card-area" id="table-area" role="region" aria-labelledby="table-heading" aria-hidden="true">
         <p id="table-description">바닥이 비었습니다.</p>
     </div>
     
-    <!-- H2: 선택한 카드 (플레이어 전용) -->
+    <!-- 선택한 카드 (플레이어 전용) -->
     <div id="player-controls">
-        <h2 id="selection-heading">선택한 카드</h2>
-        <div id="selection-info" role="status" aria-labelledby="selection-heading">
-            선택된 카드가 없습니다.
+        <h2 id="selection-heading" aria-hidden="true">선택</h2>
+        <div id="selection-info" aria-hidden="true">
         </div>
         
         <!-- H2: 내 패 -->
@@ -486,7 +485,7 @@
     
     <!-- H2: 게임 로그 -->
     <h2 id="log-heading">진행 기록</h2>
-    <div id="log" role="log" aria-labelledby="log-heading"></div>
+    <div id="log" aria-labelledby="log-heading"></div>
     
     <!-- H2: 채팅 -->
     <h2 id="chat-heading">채팅 <span style="font-size:0.7em; color:#888; font-weight:normal;">(Alt+T: 입력, Alt+M: 읽기)</span></h2>
@@ -1753,20 +1752,17 @@
         document.getElementById('my-count').textContent = myHand.length;
         
         const turnDiv = document.getElementById('turn-status');
-        if (isMyTurn) {
-            turnDiv.className = 'my-turn';
-            turnDiv.textContent = '당신의 차례입니다!';
-        } else {
-            const turnPlayerName = players[currentTurn]?.name || '상대방';
-            turnDiv.className = 'opponent-turn';
-            turnDiv.textContent = `${turnPlayerName}의 차례입니다...`;
+        const newTurnText = isMyTurn ? '당신의 차례입니다!' : `${players[currentTurn]?.name || '상대방'}의 차례입니다...`;
+        // 변경 시에만 업데이트 (스크린리더 중복 방지)
+        if (turnDiv.textContent !== newTurnText) {
+            turnDiv.className = isMyTurn ? 'my-turn' : 'opponent-turn';
+            turnDiv.textContent = newTurnText;
         }
         
         const tableDiv = document.getElementById('table-description');
-        if (!lastMove) {
-            tableDiv.textContent = '바닥이 비었습니다. 자유롭게 카드를 내세요.';
-        } else {
-            tableDiv.textContent = `바닥: ${getMoveDescription(lastMove)}`;
+        const newTableText = !lastMove ? '바닥이 비었습니다.' : `바닥: ${getMoveDescription(lastMove)}`;
+        if (tableDiv.textContent !== newTableText) {
+            tableDiv.textContent = newTableText;
         }
         
         document.getElementById('btn-play').disabled = !isMyTurn;
@@ -1778,24 +1774,29 @@
     function updateSelectionInfo() {
         const infoDiv = document.getElementById('selection-info');
         
+        let newText;
         if (selectedIndices.length === 0) {
-            infoDiv.textContent = '선택된 카드가 없습니다.';
-            return;
+            newText = '';
+        } else {
+            const selectedCards = selectedIndices.map(i => myHand[i]).sort((a, b) => getCardValue(a) - getCardValue(b));
+            const cardNames = selectedCards.map(n => {
+                const val = getCardValue(n);
+                if (val === 16) return '조커';
+                if (isRedOne(n)) return '빨간1';
+                return val;
+            }).join(', ');
+            const moveInfo = getMoveInfo(selectedCards);
+            
+            if (moveInfo) {
+                newText = `${cardNames} → ${getMoveDescription(moveInfo)}`;
+            } else {
+                newText = `${cardNames} → 유효하지 않음`;
+            }
         }
         
-        const selectedCards = selectedIndices.map(i => myHand[i]).sort((a, b) => getCardValue(a) - getCardValue(b));
-        const cardNames = selectedCards.map(n => {
-            const val = getCardValue(n);
-            if (val === 16) return '조커';
-            if (isRedOne(n)) return '빨간1';
-            return val;
-        }).join(', ');
-        const moveInfo = getMoveInfo(selectedCards);
-        
-        if (moveInfo) {
-            infoDiv.textContent = `선택: ${cardNames} → ${getMoveDescription(moveInfo)}`;
-        } else {
-            infoDiv.textContent = `선택: ${cardNames} → 유효하지 않은 조합`;
+        // 변경 시에만 업데이트
+        if (infoDiv.textContent !== newText) {
+            infoDiv.textContent = newText;
         }
     }
 
@@ -2179,7 +2180,7 @@
         
         const updates = {
             [`gameState/hands/${myPlayerId}`]: newHand,
-            'gameState/lastMove': move,
+            'gameState/lastMove': null,  // 바닥 비움 (새 카드 낼 수 있도록)
             'gameState/lastMoveBy': myPlayerId,
             'gameState/passedBy': null,
             'gameState/currentTurn': myPlayerId  // 리턴은 턴 유지
@@ -2732,7 +2733,15 @@
                         lastMoveBy: null
                     });
                     logMessage(`${playerInfo.name}: 마인 성공`);
-                    aiThinking = false;
+                    
+                    // 마인 성공 후 딜레이 후 다음 카드 내기
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, 1000);
                 }, RETURN_WAIT_TIME * 1000);
                 return;
             }
@@ -2745,17 +2754,27 @@
                 setTimeout(async () => {
                     const returnCardIndex = aiHand.findIndex(card => getCardValue(card) === mineVal);
                     const newHand = aiHand.filter((_, i) => i !== returnCardIndex);
-                    const move = { type: 'SINGLE', val: mineVal, cnt: 1, isReturn: true };
                     
+                    // 리턴 후 바닥 비우기 (새 카드 낼 수 있도록)
                     await update(ref(db, `rooms/${currentRoom}`), {
                         [`gameState/hands/${currentPlayer}`]: newHand,
-                        'gameState/lastMove': move,
+                        'gameState/lastMove': null,  // 바닥 비움
                         'gameState/lastMoveBy': currentPlayer,
                         'gameState/passedBy': null,
                         'gameState/currentTurn': currentPlayer  // 리턴은 턴 유지
                     });
                     
-                    aiThinking = false;
+                    logMessage(`${playerInfo.name}: ${mineVal}리턴`);
+                    
+                    // 리턴 후 딜레이 후 다음 카드 내기
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        // Firebase에서 최신 데이터 가져와서 다음 카드 내기
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, 1000);
                 }, delay);
                 return;
             }
