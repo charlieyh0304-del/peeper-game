@@ -286,6 +286,158 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
+        
+        /* ==================== 저시력 접근성 (고대비 모드) ==================== */
+        body.high-contrast {
+            background: #000;
+        }
+        body.high-contrast #lobby,
+        body.high-contrast #game-container,
+        body.high-contrast #result-content {
+            background: #000;
+            border: 3px solid #fff;
+        }
+        body.high-contrast .info-panel,
+        body.high-contrast #opponents-area .opponent-card,
+        body.high-contrast .hand,
+        body.high-contrast #log,
+        body.high-contrast #chat-container,
+        body.high-contrast .tab-panel,
+        body.high-contrast #players-list,
+        body.high-contrast .rank-item {
+            background: #000;
+            border: 2px solid #fff;
+        }
+        body.high-contrast .card {
+            background: #000;
+            border: 4px solid #fff;
+            color: #fff;
+            font-size: 22px;
+            width: 60px;
+            height: 80px;
+        }
+        body.high-contrast .card[aria-pressed="true"] {
+            background: #ffff00;
+            color: #000;
+            border-color: #ffff00;
+            transform: translateY(-12px);
+        }
+        body.high-contrast .card[aria-pressed="true"]::after {
+            content: "✓";
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #000;
+            color: #ffff00;
+            font-size: 16px;
+            font-weight: bold;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ffff00;
+        }
+        body.high-contrast .card {
+            position: relative;
+        }
+        body.high-contrast .card.joker {
+            border-color: #00ffff;
+            color: #00ffff;
+        }
+        body.high-contrast .card.joker[aria-pressed="true"] {
+            background: #00ffff;
+            color: #000;
+        }
+        body.high-contrast .card.red-one {
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+        body.high-contrast .card.red-one[aria-pressed="true"] {
+            background: #ff0000;
+            color: #fff;
+        }
+        body.high-contrast .card:focus {
+            outline: 6px solid #00ff00;
+            outline-offset: 4px;
+        }
+        body.high-contrast button {
+            background: #fff;
+            color: #000;
+            border: 3px solid #000;
+            font-weight: bold;
+        }
+        body.high-contrast button:hover,
+        body.high-contrast button:focus {
+            background: #ffff00;
+            outline: 4px solid #00ff00;
+        }
+        body.high-contrast button:disabled {
+            background: #666;
+            color: #999;
+        }
+        body.high-contrast #turn-status.my-turn {
+            background: #00ff00;
+            color: #000;
+            font-size: 1.3em;
+        }
+        body.high-contrast #turn-status.opponent-turn {
+            background: #ff0000;
+            color: #fff;
+        }
+        body.high-contrast h1,
+        body.high-contrast h2,
+        body.high-contrast .opponent-name,
+        body.high-contrast .info-item strong {
+            color: #ffff00;
+        }
+        body.high-contrast .opponent-card.current-turn {
+            border: 5px solid #00ff00;
+            background: #003300;
+        }
+        body.high-contrast #selection-info {
+            background: #000;
+            border: 3px solid #ffff00;
+            color: #ffff00;
+            font-size: 1.1em;
+        }
+        body.high-contrast .card-area {
+            border: 4px solid #ffff00;
+            background: #000;
+        }
+        body.high-contrast .tab-btn {
+            background: #000;
+            color: #fff;
+            border: 2px solid #fff;
+        }
+        body.high-contrast .tab-btn.active,
+        body.high-contrast .tab-btn[aria-selected="true"] {
+            background: #ffff00;
+            color: #000;
+        }
+        /* 고대비 토글 버튼 */
+        #accessibility-toggle {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            padding: 10px 15px;
+            font-size: 14px;
+            background: #333;
+            color: #fff;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #accessibility-toggle:focus {
+            outline: 3px solid #ffc107;
+        }
+        body.high-contrast #accessibility-toggle {
+            background: #ffff00;
+            color: #000;
+            border-color: #000;
+        }
     </style>
 </head>
 <body>
@@ -397,6 +549,15 @@
             <input type="text" id="spectate-room-code" placeholder="방 코드 입력 (예: ABC123)" maxlength="6" style="text-transform: uppercase;">
             
             <button class="btn-spectate" onclick="joinAsSpectator()">관전하기</button>
+        </div>
+        
+        <!-- 방 관리 -->
+        <div style="margin-top: 20px; padding: 15px; background: #1a1a2e; border-radius: 10px; border: 1px solid #444;">
+            <h3 style="color: #e74c3c; margin: 0 0 10px 0; font-size: 0.95em;">🗑️ 방 관리</h3>
+            <label for="delete-room-code" class="sr-only">삭제할 방 코드</label>
+            <input type="text" id="delete-room-code" placeholder="삭제할 방 코드" maxlength="6" style="text-transform: uppercase; width: 60%; display: inline-block;">
+            <button onclick="deleteRoom()" style="background:#e74c3c; width: 35%; margin-left: 5%;">삭제</button>
+            <p style="color:#888; font-size:0.8em; margin-top:8px;">이전에 만든 방을 삭제합니다</p>
         </div>
     </div>
     
@@ -641,6 +802,39 @@
     window.doReturn = doReturn;
     window.callCards = callCards;
     window.autoMine = autoMine;
+    window.deleteRoom = deleteRoom;
+
+    // ==================== 방 삭제 ====================
+    async function deleteRoom() {
+        if (!isFirebaseReady) {
+            alert("Firebase가 연결되지 않았습니다.");
+            return;
+        }
+        
+        const roomCode = document.getElementById('delete-room-code').value.trim().toUpperCase();
+        if (!roomCode) {
+            alert("삭제할 방 코드를 입력해주세요.");
+            return;
+        }
+        
+        try {
+            const snapshot = await get(ref(db, `rooms/${roomCode}`));
+            if (!snapshot.exists()) {
+                alert("존재하지 않는 방입니다.");
+                return;
+            }
+            
+            if (confirm(`방 "${roomCode}"를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+                await remove(ref(db, `rooms/${roomCode}`));
+                document.getElementById('delete-room-code').value = '';
+                alert(`방 "${roomCode}"가 삭제되었습니다.`);
+                announce('방이 삭제되었습니다.');
+            }
+        } catch (error) {
+            console.error("방 삭제 실패:", error);
+            alert("방 삭제에 실패했습니다.");
+        }
+    }
 
     // ==================== 탭 메뉴 ====================
     const tabNames = {
@@ -881,6 +1075,31 @@
     }
     window.toggleSound = toggleSound;
 
+    // 고대비 모드 토글
+    function toggleHighContrast() {
+        document.body.classList.toggle('high-contrast');
+        const isHigh = document.body.classList.contains('high-contrast');
+        const btn = document.getElementById('accessibility-toggle');
+        if (btn) {
+            btn.textContent = isHigh ? '👁️ 일반 모드' : '👁️ 고대비';
+            btn.setAttribute('aria-label', isHigh ? '일반 모드로 전환' : '고대비 모드로 전환');
+        }
+        announce(isHigh ? '고대비 모드 켜짐' : '일반 모드');
+        // 설정 저장
+        localStorage.setItem('highContrast', isHigh ? 'true' : 'false');
+    }
+    window.toggleHighContrast = toggleHighContrast;
+    
+    // 페이지 로드 시 고대비 설정 복원
+    if (localStorage.getItem('highContrast') === 'true') {
+        document.body.classList.add('high-contrast');
+        const btn = document.getElementById('accessibility-toggle');
+        if (btn) {
+            btn.textContent = '👁️ 일반 모드';
+            btn.setAttribute('aria-label', '일반 모드로 전환');
+        }
+    }
+
     let currentAnnouncer = 1;  // 1 또는 2 번갈아 사용
     
     // 게임 중 출력할 메시지 패턴
@@ -1096,21 +1315,54 @@
 
             const roomData = snapshot.val();
             
-            if (roomData.status !== 'waiting') {
-                alert("이미 게임이 진행 중입니다.");
+            // 닉네임으로 기존 플레이어 찾기 (재접속 시도)
+            const existingPlayers = roomData.players || {};
+            let existingPlayerId = null;
+            for (const [id, player] of Object.entries(existingPlayers)) {
+                if (player.name === myName && !player.isAI) {
+                    existingPlayerId = id;
+                    break;
+                }
+            }
+            
+            // 재접속 처리
+            if (existingPlayerId) {
+                myPlayerId = existingPlayerId;
+                maxPlayers = roomData.maxPlayers;
+                
+                // 연결 상태 업데이트
+                await update(ref(db, `rooms/${roomCode}/players/${myPlayerId}`), {
+                    connected: true
+                });
+                
+                onDisconnect(ref(db, `rooms/${roomCode}/players/${myPlayerId}/connected`)).set(false);
+                
+                document.getElementById('lobby-main').style.display = 'none';
+                
+                if (roomData.status === 'playing') {
+                    document.getElementById('lobby').style.display = 'none';
+                    document.getElementById('game-container').style.display = 'block';
+                    announce("게임에 재접속했습니다.");
+                } else {
+                    document.getElementById('lobby-waiting').style.display = 'block';
+                    document.getElementById('room-code-display').textContent = roomCode;
+                    document.getElementById('max-player-count').textContent = maxPlayers;
+                    announce("방에 재접속했습니다.");
+                }
+                
+                watchRoom(roomCode);
                 return;
             }
-
-            // 닉네임 중복 검사
-            const existingNames = Object.values(roomData.players || {}).map(p => p.name);
-            if (existingNames.includes(myName)) {
-                alert("이미 같은 닉네임의 플레이어가 있습니다. 다른 닉네임을 사용해주세요.");
+            
+            // 새 플레이어 참가
+            if (roomData.status !== 'waiting') {
+                alert("이미 게임이 진행 중입니다. 같은 닉네임으로 재접속하려면 기존 닉네임을 입력하세요.");
                 return;
             }
 
             // 빈 슬롯 찾기
-            const existingPlayers = Object.keys(roomData.players || {});
-            if (existingPlayers.length >= roomData.maxPlayers) {
+            const playerCount = Object.keys(existingPlayers).length;
+            if (playerCount >= roomData.maxPlayers) {
                 alert("방이 가득 찼습니다.");
                 return;
             }
@@ -2027,6 +2279,7 @@
         // X만으로 페어(2개), 밤(3개), 밤투(4개) → 숫자 물어보기
         if (sortedNormal.length === 0 && jokerCount >= 2 && jokerCount <= 4) {
             let input = prompt('X를 어떤 숫자로? (1~15)', '1');
+            if (input === null) return cards;  // 취소시 원본 반환
             let targetVal = parseInt(input);
             if (isNaN(targetVal) || targetVal < 1 || targetVal > 15) targetVal = 1;
             const result = [...cards];
@@ -3729,4 +3982,8 @@
     }
 </script>
 </body>
+
+<!-- 고대비 모드 토글 버튼 -->
+<button id="accessibility-toggle" onclick="toggleHighContrast()" aria-label="고대비 모드 켜기">👁️ 고대비</button>
+
 </html>
