@@ -494,7 +494,7 @@
         
         <!-- H2: 내 패 -->
         <h2 id="hand-heading">내 패 (<span id="hand-count">0</span>장)</h2>
-        <div class="hand" id="player-hand" role="listbox" aria-labelledby="hand-heading" aria-multiselectable="true">
+        <div class="hand" id="player-hand" aria-labelledby="hand-heading">
         </div>
         
         <div class="keyboard-help" aria-hidden="true">
@@ -507,6 +507,7 @@
             <button id="btn-play" onclick="playMove()">카드 내기 (Alt+P)</button>
             <button id="btn-pass" class="btn-pass" onclick="passTurn()">패스 (Alt+X)</button>
             <button id="btn-clear" class="btn-clear" onclick="clearSelection()">선택 취소 (Alt+C)</button>
+            <button id="btn-mine" onclick="autoMine()" style="background:#9b59b6; display:none;">💣 마인 (Alt+M)</button>
             <button id="btn-call" onclick="callCards()" style="background:#e67e22; display:none;">📢 3카드!</button>
         </div>
         
@@ -611,7 +612,9 @@
     
     // 마인/리턴 관련 변수
     let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
-    const RETURN_WAIT_TIME = 3;  // 리턴 대기 시간 (초)
+    const RETURN_WAIT_TIME = 10;  // 리턴 대기 시간 (초) - 사용자가 리턴할 시간
+    const AI_TURN_DELAY = 7000;   // AI 턴 기본 딜레이 (7초)
+    const AI_TURN_RANDOM = 8000;  // AI 턴 랜덤 추가 딜레이 (0~8초) → 총 7~15초
 
     // 전역 함수 노출
     window.createRoom = createRoom;
@@ -1145,7 +1148,7 @@
                         currentTurn: firstPlayer,
                         lastMove: null,
                         lastMoveBy: null,
-                        passedBy: null,
+                        passCount: 0,
                         finishedOrder: []
                     }
                 });
@@ -1550,14 +1553,15 @@
         const prevLastMove = lastMove;
         lastMove = gs.lastMove;
         
-        // 선을 잡았을 때 (내가 낸 카드에 모두 패스해서 다시 내 턴) → 바닥 비우기
-        if (isMyTurn && gs.lastMoveBy === myPlayerId && gs.lastMove && !gs.lastMove.isMine) {
-            // 자동으로 바닥 비움
+        // 내가 마인했는데 리턴 없이 내 턴이 돌아왔으면 → 마인 성공, 바닥 비우기
+        if (isMyTurn && gs.lastMove?.isMine && gs.lastMove?.mineBy === myPlayerId) {
             update(ref(db, `rooms/${currentRoom}/gameState`), {
                 lastMove: null,
-                lastMoveBy: null
+                lastMoveBy: null,
+                passCount: 0
             });
-            logMessage('선을 잡았습니다!');
+            logMessage('마인 성공! 선을 잡았습니다.');
+            announce('마인 성공! 카드를 내세요.');
             lastMove = null;
         }
         
@@ -1718,15 +1722,12 @@
             
             card.className = 'card' + (isJoker ? ' joker' : '') + (isRed ? ' red-one' : '');
             card.id = `card-${idx}`;
-            card.setAttribute('role', 'option');
-            card.setAttribute('aria-selected', selectedIndices.includes(idx) ? 'true' : 'false');
-            // 모든 카드 Tab으로 탐색 가능
             card.setAttribute('tabindex', '0');
             
             const cardName = isJoker ? 'X' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
-            // 간략한 aria-label (숫자 + 선택 여부만)
             card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
+            card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
             card.textContent = isJoker ? 'X' : actualValue;
             
             card.addEventListener('click', () => {
@@ -1749,6 +1750,19 @@
         if (callBtn) {
             callBtn.style.display = myHand.length === 3 ? 'inline-block' : 'none';
         }
+        
+        // 마인 버튼 표시 (바닥이 싱글이고 내 패에 같은 숫자 페어가 있을 때)
+        // 마인은 내 차례가 아니어도 가능
+        const mineBtn = document.getElementById('btn-mine');
+        if (mineBtn) {
+            let canMine = false;
+            if (lastMove && lastMove.type === 'SINGLE' && !lastMove.isMine) {
+                const targetVal = lastMove.val;
+                const matchCount = myHand.filter(card => getCardValue(card) === targetVal).length;
+                canMine = matchCount >= 2;
+            }
+            mineBtn.style.display = canMine ? 'inline-block' : 'none';
+        }
     }
 
     // ==================== 카드 선택 ====================
@@ -1763,15 +1777,18 @@
         
         if (selectedIndices.includes(idx)) {
             selectedIndices = selectedIndices.filter(i => i !== idx);
-            card.setAttribute('aria-selected', 'false');
+            card.setAttribute('aria-pressed', 'false');
             card.setAttribute('aria-label', `${cardName}`);
             announce(`${cardName} 해제`);
         } else {
             selectedIndices.push(idx);
-            card.setAttribute('aria-selected', 'true');
+            card.setAttribute('aria-pressed', 'true');
             card.setAttribute('aria-label', `${cardName}, 선택됨`);
             announce(`${cardName} 선택`);
         }
+        
+        // 선택 후 초점 유지
+        card.focus();
         
         updateSelectionInfo();
     }
@@ -1840,8 +1857,6 @@
         
         currentFocusIndex = newIndex;
         cards[newIndex].focus();
-        
-        // 포커스 이벤트에서 알림하므로 여기서는 생략
     }
 
     // ==================== 정보 업데이트 ====================
@@ -1898,19 +1913,40 @@
         }
     }
 
-    function announceStatus() {
-        const isMyTurn = currentTurn === myPlayerId;
-        let msg = `내 패 ${myHand.length}장. `;
-        msg += lastMove ? `바닥: ${getMoveDescription(lastMove)}. ` : '바닥 비었음. ';
-        msg += isMyTurn ? '내 차례.' : `${players[currentTurn]?.name || '상대방'} 차례.`;
-        announce(msg);
+    async function announceStatus() {
+        // Firebase에서 최신 데이터 읽어오기
+        if (!currentRoom) {
+            announce('게임이 시작되지 않았습니다.');
+            return;
+        }
+        
+        try {
+            const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+            if (!snapshot.exists()) {
+                announce('방 정보를 찾을 수 없습니다.');
+                return;
+            }
+            
+            const data = snapshot.val();
+            const gs = data.gameState;
+            const myHandCount = gs?.hands?.[myPlayerId]?.length || 0;
+            const turn = gs?.currentTurn;
+            const floor = gs?.lastMove;
+            
+            let msg = `내 패 ${myHandCount}장. `;
+            msg += floor ? `바닥: ${getMoveDescription(floor)}. ` : '바닥 비었음. ';
+            msg += turn === myPlayerId ? '내 차례.' : `${data.players[turn]?.name || '상대방'} 차례.`;
+            announce(msg);
+        } catch (error) {
+            announce('상태를 불러올 수 없습니다.');
+        }
     }
 
     function clearSelection() {
         selectedIndices.forEach(idx => {
             const card = document.getElementById(`card-${idx}`);
             if (card) {
-                card.setAttribute('aria-selected', 'false');
+                card.setAttribute('aria-pressed', 'false');
                 const num = myHand[idx];
                 const actualValue = getCardValue(num);
                 const cardName = actualValue === 16 ? 'X' : (isRedOne(num) ? '빨간 1' : actualValue);
@@ -2061,37 +2097,40 @@
     function getMoveDescription(move) {
         if (!move) return '';
         
+        // 16은 X로 표시
+        const displayVal = (val) => val === 16 ? 'X' : val;
+        
         // 마인/리턴은 별도 형식
         if (move.isMine) {
-            return `${move.val}마인`;
+            return `${displayVal(move.val)}마인`;
         }
         if (move.isReturn) {
-            return `${move.val}리턴`;
+            return `${displayVal(move.val)}리턴`;
         }
         
         switch (move.type) {
             case 'SINGLE':
-                return `${move.val} 싱글`;
+                return `${displayVal(move.val)} 싱글`;
             case 'PAIR':
-                return `${move.val} 페어`;
+                return `${displayVal(move.val)} 페어`;
             case 'STRAIGHT':
                 // 시작값부터 cnt개의 연속 숫자
                 const values = [];
                 for (let i = 0; i < move.cnt; i++) {
-                    values.push(move.val + i);
+                    values.push(displayVal(move.val + i));
                 }
                 return `${values.join(', ')} 스트레이트`;
             case 'PAIR_STRAIGHT':
                 // 페어 스트레이트 (예: 3,4,5 페어스트레이트)
                 const pairValues = [];
                 for (let i = 0; i < move.pairCount; i++) {
-                    pairValues.push(move.val + i);
+                    pairValues.push(displayVal(move.val + i));
                 }
                 return `${pairValues.join(', ')} 페어스트레이트`;
             case 'BOMB':
-                return `${move.val}밤`;
+                return `${displayVal(move.val)}밤`;
             case 'BOMB_TWO':
-                return `${move.val}밤투`;
+                return `${displayVal(move.val)}밤투`;
             default:
                 return move.type;
         }
@@ -2184,10 +2223,10 @@
             [`gameState/hands/${myPlayerId}`]: newHand,
             'gameState/lastMove': move,
             'gameState/lastMoveBy': myPlayerId,
-            'gameState/passedBy': null
+            'gameState/passCount': 0  // 카드 내면 패스 카운트 리셋
         };
         
-        // 완주 체크
+        // 완주 체크 - 누군가 패를 다 내면 바로 게임 종료
         if (newHand.length === 0) {
             const currentFinished = finishedPlayers.length;
             const myRank = currentFinished + 1;
@@ -2195,19 +2234,7 @@
             updates[`players/${myPlayerId}/finished`] = true;
             updates[`players/${myPlayerId}/rank`] = myRank;
             updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
-            
-            // 남은 플레이어 체크
-            const remainingPlayers = Object.entries(players)
-                .filter(([id, p]) => id !== myPlayerId && !p.finished)
-                .length;
-            
-            if (remainingPlayers <= 1) {
-                // 게임 종료
-                updates['status'] = 'finished';
-            } else {
-                // 다음 턴
-                updates['gameState/currentTurn'] = getNextTurn(myPlayerId);
-            }
+            updates['status'] = 'finished';  // 바로 게임 종료
         } else {
             // 다음 턴
             updates['gameState/currentTurn'] = keepTurn ? myPlayerId : getNextTurn(myPlayerId);
@@ -2235,26 +2262,33 @@
         announce('패스했습니다.');
         logMessage('나: 패스');
         
+        // Firebase에서 현재 상태 가져오기
+        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+        const data = snapshot.val();
+        const gs = data.gameState;
+        
+        // 활성 플레이어 수 (완주하지 않은 플레이어)
+        const activePlayers = Object.entries(data.players)
+            .filter(([id, p]) => !p.finished)
+            .length;
+        
+        const currentPassCount = (gs.passCount || 0) + 1;
         const nextTurn = getNextTurn(myPlayerId);
         
-        // Firebase에서 현재 상태 가져오기
-        const snapshot = await get(ref(db, `rooms/${currentRoom}/gameState`));
-        const gs = snapshot.val();
-        
-        // 다음 턴이 카드를 낸 사람이면 → 선을 잡음 (바닥 비움)
-        if (gs?.lastMoveBy === nextTurn && gs?.lastMove && !gs?.lastMove?.isMine) {
+        // 모두 패스했으면 (활성 플레이어 - 1명 모두 패스) → 선을 잡음
+        if (currentPassCount >= activePlayers - 1 && gs.lastMoveBy) {
             await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                currentTurn: nextTurn,
+                currentTurn: gs.lastMoveBy,  // 마지막으로 낸 사람에게 턴
                 lastMove: null,
                 lastMoveBy: null,
-                passedBy: myPlayerId
+                passCount: 0
             });
-            logMessage(`${players[nextTurn]?.name || nextTurn}: 선을 잡음`);
+            logMessage(`${data.players[gs.lastMoveBy]?.name || gs.lastMoveBy}: 선을 잡음`);
         } else {
             // 일반 패스
             await update(ref(db, `rooms/${currentRoom}/gameState`), {
                 currentTurn: nextTurn,
-                passedBy: myPlayerId
+                passCount: currentPassCount
             });
         }
         
@@ -2278,16 +2312,17 @@
 
     // ==================== 마인/리턴 처리 ====================
     
-    // 자동 마인 (Alt+M)
+    // 자동 마인 (Alt+M) - 마인은 내 차례가 아니어도 가능
     async function autoMine() {
-        if (currentTurn !== myPlayerId) {
-            announce('내 차례가 아닙니다.');
-            return;
-        }
-        
         // 바닥이 싱글인지 확인
         if (!lastMove || lastMove.type !== 'SINGLE') {
             announce('마인할 수 없습니다. 바닥이 싱글이 아닙니다.');
+            return;
+        }
+        
+        // 이미 마인 상태면 불가
+        if (lastMove.isMine) {
+            announce('이미 마인 상태입니다.');
             return;
         }
         
@@ -2312,14 +2347,37 @@
         const move = getMoveInfo(cards);
         
         if (move && move.type === 'PAIR' && move.val === targetVal) {
-            // 마인 처리
-            selectedIndices = mineIndices;
+            // 마인 처리 (내 차례가 아닐 수 있으므로 직접 업데이트)
             move.isMine = true;
             move.mineBy = myPlayerId;
             
-            announce(`${move.val}마인!`);
-            logMessage(`나: ${move.val}마인`);
-            await submitMove(move, false);  // 턴 넘김
+            const newHand = myHand.filter((_, i) => !mineIndices.includes(i));
+            
+            // 다음 턴 계산 (마인한 사람 다음부터)
+            const nextTurn = getNextTurn(myPlayerId);
+            
+            const updates = {
+                [`gameState/hands/${myPlayerId}`]: newHand,
+                'gameState/lastMove': move,
+                'gameState/lastMoveBy': myPlayerId,
+                'gameState/passCount': 0,
+                'gameState/currentTurn': nextTurn  // 다음 사람부터 리턴 기회
+            };
+            
+            // 완주 체크
+            if (newHand.length === 0) {
+                updates[`players/${myPlayerId}/finished`] = true;
+                updates[`players/${myPlayerId}/rank`] = finishedPlayers.length + 1;
+                updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
+                updates['status'] = 'finished';
+            }
+            
+            await update(ref(db, `rooms/${currentRoom}`), updates);
+            
+            const displayVal = targetVal === 16 ? 'X' : targetVal;
+            announce(`${displayVal}마인!`);
+            logMessage(`나: ${displayVal}마인`);
+            playSound('play');
         }
     }
     
@@ -2408,11 +2466,11 @@
                 [`gameState/hands/${myPlayerId}`]: newHand,
                 'gameState/lastMove': null,
                 'gameState/lastMoveBy': myPlayerId,
-                'gameState/passedBy': null,
+                'gameState/passCount': 0,
                 'gameState/currentTurn': myPlayerId
             };
             
-            // 완주 체크
+            // 완주 체크 - 누군가 패를 다 내면 바로 게임 종료
             if (newHand.length === 0) {
                 const currentFinished = finishedPlayers.length;
                 const myRank = currentFinished + 1;
@@ -2420,6 +2478,7 @@
                 updates[`players/${myPlayerId}/finished`] = true;
                 updates[`players/${myPlayerId}/rank`] = myRank;
                 updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
+                updates['status'] = 'finished';  // 바로 게임 종료
             }
             
             await update(ref(db, `rooms/${currentRoom}`), updates);
@@ -2634,7 +2693,7 @@
                         currentTurn: firstPlayer,
                         lastMove: null,
                         lastMoveBy: null,
-                        passedBy: null,
+                        passCount: 0,
                         finishedOrder: []
                     }
                 });
@@ -2687,7 +2746,7 @@
                     currentTurn: firstPlayer,
                     lastMove: null,
                     lastMoveBy: null,
-                    passedBy: null,
+                    passCount: 0,
                     finishedOrder: []
                 }
             });
@@ -2856,7 +2915,7 @@
                         currentTurn: firstPlayer,
                         lastMove: null,
                         lastMoveBy: null,
-                        passedBy: null,
+                        passCount: 0,
                         finishedOrder: []
                     }
                 });
@@ -2915,7 +2974,7 @@
                     currentTurn: firstPlayer,
                     lastMove: null,
                     lastMoveBy: null,
-                    passedBy: null,
+                    passCount: 0,
                     finishedOrder: []
                 }
             });
@@ -2950,28 +3009,6 @@
         // AI가 이미 완주했는지 확인
         if (playerInfo.finished) return;
         
-        // 선을 잡았을 때 (AI가 낸 카드에 모두 패스해서 다시 AI 턴) → 바닥 비우기
-        if (gs.lastMoveBy === currentPlayer && gs.lastMove && !gs.lastMove.isMine) {
-            aiThinking = true;
-            setTimeout(async () => {
-                await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                    lastMove: null,
-                    lastMoveBy: null
-                });
-                logMessage(`${playerInfo.name}: 선을 잡음`);
-                
-                // 바닥 비운 후 다시 AI 턴 처리
-                setTimeout(async () => {
-                    aiThinking = false;
-                    const snapshot = await get(ref(db, `rooms/${currentRoom}`));
-                    if (snapshot.exists()) {
-                        processAITurn(snapshot.val());
-                    }
-                }, 300);
-            }, 500);
-            return;
-        }
-        
         // 마인 상태일 때 처리
         if (gs.lastMove?.isMine) {
             const mineBy = gs.lastMove.mineBy;
@@ -2981,7 +3018,7 @@
             // 마인 한 AI에게 턴이 돌아왔으면: 리턴 대기 후 바닥 비우고 진행
             if (mineBy === currentPlayer) {
                 aiThinking = true;
-                // 리턴 대기 시간 (짧게)
+                // 리턴 대기 시간 후 마인 성공
                 setTimeout(async () => {
                     await update(ref(db, `rooms/${currentRoom}/gameState`), {
                         lastMove: null,
@@ -2989,14 +3026,14 @@
                     });
                     logMessage(`${playerInfo.name}: 마인 성공`);
                     
-                    // 마인 성공 후 바로 다음 카드 내기
+                    // 마인 성공 후 다음 카드 내기
                     setTimeout(async () => {
                         aiThinking = false;
                         const snapshot = await get(ref(db, `rooms/${currentRoom}`));
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 500);
+                    }, AI_TURN_DELAY);
                 }, RETURN_WAIT_TIME * 1000);
                 return;
             }
@@ -3005,7 +3042,8 @@
             const hasReturnCard = aiHand?.some(card => getCardValue(card) === mineVal);
             if (hasReturnCard) {
                 aiThinking = true;
-                const delay = 500 + Math.random() * 1000;  // 0.5~1.5초 대기
+                // 6~12초 대기 후 리턴 (생각하는 시간)
+                const delay = 6000 + Math.random() * 6000;
                 setTimeout(async () => {
                     const returnCardIndex = aiHand.findIndex(card => getCardValue(card) === mineVal);
                     const newHand = aiHand.filter((_, i) => i !== returnCardIndex);
@@ -3015,13 +3053,13 @@
                         [`gameState/hands/${currentPlayer}`]: newHand,
                         'gameState/lastMove': null,  // 바닥 비움
                         'gameState/lastMoveBy': currentPlayer,
-                        'gameState/passedBy': null,
+                        'gameState/passCount': 0,
                         'gameState/currentTurn': currentPlayer  // 리턴은 턴 유지
                     });
                     
                     logMessage(`${playerInfo.name}: ${mineVal}리턴`);
                     
-                    // 리턴 후 바로 다음 카드 내기
+                    // 리턴 후 다음 카드 내기 (5초 대기)
                     setTimeout(async () => {
                         aiThinking = false;
                         // Firebase에서 최신 데이터 가져와서 다음 카드 내기
@@ -3029,11 +3067,11 @@
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 500);
+                    }, AI_TURN_DELAY);
                 }, delay);
                 return;
             } else {
-                // 리턴 못하면 바로 패스 (딜레이 최소화)
+                // 리턴 못하면 패스 (6~12초 대기 후)
                 aiThinking = true;
                 setTimeout(async () => {
                     await aiPass(currentPlayer, data);
@@ -3044,16 +3082,16 @@
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 300);
-                }, 300);
+                    }, AI_TURN_DELAY);
+                }, 6000 + Math.random() * 6000);
                 return;
             }
         }
         
         aiThinking = true;
         
-        // 0.5~1초 랜덤 지연 후 AI 행동
-        const delay = 500 + Math.random() * 500;
+        // 7~15초 랜덤 지연 후 AI 행동 (마인/리턴 기회 제공, 현실감 있게)
+        const delay = AI_TURN_DELAY + Math.random() * AI_TURN_RANDOM;
         
         setTimeout(async () => {
             try {
@@ -3073,7 +3111,7 @@
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, 300);
+                    }, AI_TURN_DELAY + Math.random() * AI_TURN_RANDOM);
                     return;
                 }
                 
@@ -3093,7 +3131,7 @@
                     if (snapshot.exists()) {
                         processAITurn(snapshot.val());
                     }
-                }, 300);
+                }, AI_TURN_DELAY + Math.random() * AI_TURN_RANDOM);
             } catch (error) {
                 console.error("AI 턴 처리 실패:", error);
                 aiThinking = false;
@@ -3402,7 +3440,7 @@
             [`gameState/hands/${playerId}`]: newHand,
             'gameState/lastMove': move,
             'gameState/lastMoveBy': playerId,
-            'gameState/passedBy': null
+            'gameState/passCount': 0  // 카드 내면 패스 카운트 리셋
         };
         
         // 3카드 알림 (3장 남으면)
@@ -3415,7 +3453,7 @@
             }, 500);
         }
         
-        // 완주 체크
+        // 완주 체크 - 누군가 패를 다 내면 바로 게임 종료
         if (newHand.length === 0) {
             const currentFinished = roomData.gameState.finishedOrder?.length || 0;
             const rank = currentFinished + 1;
@@ -3423,17 +3461,7 @@
             updates[`players/${playerId}/finished`] = true;
             updates[`players/${playerId}/rank`] = rank;
             updates['gameState/finishedOrder'] = [...(roomData.gameState.finishedOrder || []), playerId];
-            
-            // 남은 플레이어 체크
-            const remainingPlayers = Object.entries(roomData.players)
-                .filter(([id, p]) => id !== playerId && !p.finished)
-                .length;
-            
-            if (remainingPlayers <= 1) {
-                updates['status'] = 'finished';
-            } else {
-                updates['gameState/currentTurn'] = getNextTurnFrom(playerId, roomData);
-            }
+            updates['status'] = 'finished';  // 바로 게임 종료
         } else if (keepTurn) {
             // 리턴: 턴 유지
             updates['gameState/currentTurn'] = playerId;
@@ -3447,23 +3475,44 @@
     // AI 패스
     async function aiPass(playerId, roomData) {
         const playerName = roomData.players[playerId].name;
-        const nextTurn = getNextTurnFrom(playerId, roomData);
         const gs = roomData.gameState;
         
-        // 다음 턴이 카드를 낸 사람이면 → 선을 잡음 (바닥 비움)
-        if (gs.lastMoveBy === nextTurn && gs.lastMove && !gs.lastMove.isMine) {
+        // 활성 플레이어 수 (완주하지 않은 플레이어)
+        const activePlayers = Object.entries(roomData.players)
+            .filter(([id, p]) => !p.finished)
+            .length;
+        
+        const currentPassCount = (gs.passCount || 0) + 1;
+        const nextTurn = getNextTurnFrom(playerId, roomData);
+        
+        logMessage(`${playerName}: 패스`);
+        
+        // 모두 패스했으면 (활성 플레이어 - 1명 모두 패스) → 선을 잡음
+        if (currentPassCount >= activePlayers - 1 && gs.lastMoveBy) {
+            const newTurnPlayer = gs.lastMoveBy;
             await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                currentTurn: nextTurn,
+                currentTurn: newTurnPlayer,
                 lastMove: null,
                 lastMoveBy: null,
-                passedBy: playerId
+                passCount: 0
             });
-            logMessage(`${roomData.players[nextTurn]?.name || nextTurn}: 선을 잡음`);
+            logMessage(`${roomData.players[newTurnPlayer]?.name || newTurnPlayer}: 선을 잡음`);
+            
+            // 선을 잡은 플레이어가 AI면 딜레이 후 턴 처리
+            if (roomData.players[newTurnPlayer]?.isAI) {
+                setTimeout(async () => {
+                    aiThinking = false;
+                    const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                    if (snapshot.exists()) {
+                        processAITurn(snapshot.val());
+                    }
+                }, AI_TURN_DELAY);
+            }
         } else {
             // 일반 패스
             await update(ref(db, `rooms/${currentRoom}/gameState`), {
                 currentTurn: nextTurn,
-                passedBy: playerId
+                passCount: currentPassCount
             });
         }
     }
