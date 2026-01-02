@@ -86,17 +86,36 @@
             cursor: pointer; background: #1a1a2e; color: #eee;
             font-weight: bold; font-size: 18px; user-select: none;
             transition: transform 0.1s, background 0.1s;
+            position: relative;
         }
         .card:focus { outline: 4px solid #ffc107; outline-offset: 2px; }
-        .card[aria-selected="true"] { 
+        .card[aria-pressed="true"] { 
             background: #e94560; color: white; 
             transform: translateY(-10px); 
             border-color: #ff6b6b;
+            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.5);
+        }
+        .card[aria-pressed="true"]::after {
+            content: "✓";
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            background: #27ae60;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
-        .card.joker[aria-selected="true"] { background: #ff9800; color: #1a1a2e; }
+        .card.joker[aria-pressed="true"] { background: #ff9800; color: #1a1a2e; }
         .card.red-one { border-color: #ff0000; color: #ff0000; background: #2a1a1a; }
-        .card.red-one[aria-selected="true"] { background: #ff0000; color: white; border-color: #ff6b6b; }
+        .card.red-one[aria-pressed="true"] { background: #ff0000; color: white; border-color: #ff6b6b; }
         
         /* 버튼 */
         button { padding: 12px 20px; font-size: 15px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 8px; margin: 4px; font-weight: bold; }
@@ -192,7 +211,7 @@
                 font-size: 16px;
                 border-width: 2px;
             }
-            .card[aria-selected="true"] { transform: translateY(-8px); }
+            .card[aria-pressed="true"] { transform: translateY(-8px); }
             .hand { gap: 4px; padding: 10px; min-height: 80px; }
             
             /* 바닥 영역 */
@@ -246,7 +265,7 @@
         /* 터치 디바이스 전용 */
         @media (hover: none) and (pointer: coarse) {
             .card:hover { transform: none; }
-            .card[aria-selected="true"]:hover { transform: translateY(-8px); }
+            .card[aria-pressed="true"]:hover { transform: translateY(-8px); }
             button:hover { background: inherit; }
             .btn-create:hover { background: #e94560; }
             .btn-join:hover { background: #0f3460; }
@@ -558,6 +577,9 @@
             <input type="text" id="delete-room-code" placeholder="삭제할 방 코드" maxlength="6" style="text-transform: uppercase; width: 60%; display: inline-block;">
             <button onclick="deleteRoom()" style="background:#e74c3c; width: 35%; margin-left: 5%;">삭제</button>
             <p style="color:#888; font-size:0.8em; margin-top:8px;">이전에 만든 방을 삭제합니다</p>
+            <hr style="border: none; border-top: 1px solid #444; margin: 15px 0;">
+            <button onclick="deleteAllRooms()" style="background:#8b0000; width: 100%;">⚠️ 모든 방 삭제</button>
+            <p style="color:#ff6b6b; font-size:0.75em; margin-top:5px;">주의: 모든 방이 삭제됩니다!</p>
         </div>
     </div>
     
@@ -835,6 +857,37 @@
             alert("방 삭제에 실패했습니다.");
         }
     }
+    
+    // 모든 방 삭제
+    async function deleteAllRooms() {
+        if (!isFirebaseReady) {
+            alert("Firebase가 연결되지 않았습니다.");
+            return;
+        }
+        
+        try {
+            const snapshot = await get(ref(db, 'rooms'));
+            if (!snapshot.exists()) {
+                alert("삭제할 방이 없습니다.");
+                return;
+            }
+            
+            const rooms = snapshot.val();
+            const roomCount = Object.keys(rooms).length;
+            
+            if (confirm(`⚠️ 정말로 모든 방(${roomCount}개)을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 진행 중인 모든 게임이 종료됩니다.`)) {
+                if (confirm(`마지막 확인: ${roomCount}개의 방을 모두 삭제합니다.\n\n정말 계속하시겠습니까?`)) {
+                    await remove(ref(db, 'rooms'));
+                    alert(`${roomCount}개의 방이 모두 삭제되었습니다.`);
+                    announce('모든 방이 삭제되었습니다.');
+                }
+            }
+        } catch (error) {
+            console.error("전체 방 삭제 실패:", error);
+            alert("방 삭제에 실패했습니다.");
+        }
+    }
+    window.deleteAllRooms = deleteAllRooms;
 
     // ==================== 탭 메뉴 ====================
     const tabNames = {
@@ -1135,9 +1188,20 @@
         return false;
     }
     
+    let lastAnnounceMessage = '';
+    let lastAnnounceTime = 0;
+    
     function announce(message) {
         // 필터링
         if (!shouldAnnounce(message)) return;
+        
+        // 중복 알림 방지 (같은 메시지가 500ms 내에 또 오면 무시)
+        const now = Date.now();
+        if (message === lastAnnounceMessage && now - lastAnnounceTime < 500) {
+            return;
+        }
+        lastAnnounceMessage = message;
+        lastAnnounceTime = now;
         
         // 다음 announcer로 전환
         currentAnnouncer = currentAnnouncer === 1 ? 2 : 1;
@@ -2490,9 +2554,13 @@
 
     // ==================== 카드 내기 ====================
     async function playMove() {
-        if (isProcessing) return;
+        if (isProcessing) {
+            console.log('playMove: isProcessing is true');
+            return;
+        }
         
         if (currentTurn !== myPlayerId) {
+            console.log('playMove: not my turn', currentTurn, myPlayerId);
             return;  // 내 차례 아니면 조용히 무시
         }
         
@@ -2505,9 +2573,17 @@
         
         try {
             const originalCards = selectedIndices.map(idx => myHand[idx]);
+            console.log('playMove: originalCards', originalCards);
             
             // X(조커) 자동 대체
             let cards = autoReplaceJokers([...originalCards]);
+            console.log('playMove: cards after joker replace', cards);
+            
+            // 사용자가 취소한 경우 (원본과 동일하고 조커 포함)
+            if (cards === originalCards && originalCards.some(c => getCardValue(c) === 16)) {
+                announce('취소되었습니다.');
+                return;
+            }
             
             // X가 대체된 값 추적
             const jokerVals = [];
@@ -2518,6 +2594,7 @@
             });
             
             const move = getMoveInfo(cards);
+            console.log('playMove: move', move);
             
             if (!move) {
                 announce('유효하지 않은 조합입니다.');
@@ -2547,6 +2624,8 @@
                 await submitMove(move, true);
                 return;
             }
+            
+            console.log('playMove: canBeat?', canBeat(move), 'lastMove:', lastMove);
             
             if (canBeat(move)) {
                 announce(`나: ${getMoveDescription(move)}`);
