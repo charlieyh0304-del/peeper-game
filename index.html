@@ -1517,23 +1517,24 @@
                 const statusClass = room.isWaiting ? 'waiting' : 'playing';
                 const statusText = room.isWaiting ? '대기 중' : '게임 중';
                 const openBadge = room.isOpen ? '<span style="background:#9b59b6; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; margin-left:5px;">오픈</span>' : '';
+                const openText = room.isOpen ? ' 오픈 방' : '';
                 
                 let buttons = '';
                 if (room.isWaiting && room.hasRoom) {
-                    buttons = `<button onclick="joinOpenRoom('${room.code}')" style="background:#27ae60;">참가</button>`;
+                    buttons = `<button onclick="joinOpenRoom('${room.code}')" style="background:#27ae60;" aria-label="${room.code} ${room.hostName}의 방에 참가, ${room.playerCount}/${room.maxPlayers}명${openText}">참가</button>`;
                 } else if (room.isPlaying) {
-                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;">관전</button>`;
+                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;" aria-label="${room.code} ${room.hostName}의 게임 관전, ${room.playerCount}명 플레이 중">관전</button>`;
                 } else if (room.isWaiting && !room.hasRoom) {
-                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;">관전</button>`;
+                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;" aria-label="${room.code} ${room.hostName}의 방 관전, 인원 가득 참">관전</button>`;
                 }
                 
                 return `
-                    <div class="room-item" role="listitem">
+                    <div class="room-item" role="listitem" aria-label="${room.code} ${room.hostName}의 방, ${statusText}, ${room.playerCount}/${room.maxPlayers}명${openText}">
                         <div class="room-item-header">
                             <span class="room-item-code">${room.code}${openBadge}</span>
                             <span class="room-item-status ${statusClass}">${statusText}</span>
                         </div>
-                        <div class="room-item-info">
+                        <div class="room-item-info" aria-hidden="true">
                             👑 ${room.hostName} · 
                             👥 ${room.playerCount}/${room.maxPlayers}명
                             ${room.spectatorCount > 0 ? ` · 👀 ${room.spectatorCount}명 관전` : ''}
@@ -2232,6 +2233,8 @@
     }
 
     // ==================== 게임 화면 ====================
+    let gameScreenShown = false;  // 게임 화면 표시 여부 (중복 알림 방지)
+    
     function showGameScreen() {
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-container').style.display = 'block';
@@ -2243,7 +2246,10 @@
             document.getElementById('spectator-banner').style.display = 'block';
             document.getElementById('player-controls').style.display = 'none';
             document.getElementById('my-card-info').style.display = 'none';
-            announce('관전 모드로 경기를 관람합니다.');
+            // 처음 표시될 때만 알림
+            if (!gameScreenShown) {
+                announce('관전 모드로 경기를 관람합니다.');
+            }
             setPageTitle('spectating');
         } else {
             document.getElementById('spectator-banner').style.display = 'none';
@@ -2251,6 +2257,7 @@
             document.getElementById('my-card-info').style.display = 'block';
             setPageTitle('playing');
         }
+        gameScreenShown = true;
     }
 
     function updateGameFromServer(data) {
@@ -2431,16 +2438,8 @@
         }
         updateAllInfo();
         
-        // 내 차례가 처음 됐을 때만 첫 번째 카드에 포커스 (자동 포커스 튐 방지)
-        if (justBecameMyTurn && myHand.length > 0) {
-            setTimeout(() => {
-                const firstCard = document.querySelector('.card');
-                if (firstCard) {
-                    firstCard.focus();
-                    // 첫 카드 정보는 aria-label이 자동으로 읽힘
-                }
-            }, 500);
-        }
+        // 포커스 자동 이동 제거 - 알림 끊김 방지
+        // 내 차례 알림만 듣고 사용자가 직접 카드 영역으로 이동
         
         // 마인 후 마인 한 사람에게 턴 돌아오면 바닥 비우기 (방장만 처리)
         if (myPlayerId === 'player1' && data.status === 'playing' && gs.lastMove?.isMine && gs.lastMove?.mineBy === gs.currentTurn) {
@@ -2612,12 +2611,14 @@
             selectedIndices = selectedIndices.filter(i => i !== idx);
             card.setAttribute('aria-pressed', 'false');
             card.setAttribute('aria-label', `${cardName}`);
-            announce(`${cardName} 해제`);
+            // 선택 해제 알림
+            announce(`${cardName}, 해제`);
         } else {
             selectedIndices.push(idx);
             card.setAttribute('aria-pressed', 'true');
             card.setAttribute('aria-label', `${cardName}, 선택됨`);
-            announce(`${cardName} 선택`);
+            // 선택 알림
+            announce(`${cardName}, 선택됨`);
         }
         
         updateSelectionInfo();
@@ -3685,6 +3686,7 @@
         isProcessing = false;
         skipFocusRestore = false;
         mineState = null;
+        gameScreenShown = false;
         
         document.getElementById('result-modal').style.display = 'none';
         document.getElementById('game-container').style.display = 'none';
