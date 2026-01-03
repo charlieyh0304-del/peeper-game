@@ -91,31 +91,46 @@
         .card:focus { outline: 4px solid #ffc107; outline-offset: 2px; }
         .card[aria-pressed="true"] { 
             background: #e94560; color: white; 
-            transform: translateY(-10px); 
-            border-color: #ff6b6b;
-            box-shadow: 0 8px 20px rgba(233, 69, 96, 0.5);
+            transform: translateY(-12px); 
+            border: 5px solid #ffff00;
+            box-shadow: 0 10px 25px rgba(255, 255, 0, 0.6), 0 0 0 4px #e94560;
+        }
+        .card[aria-pressed="true"]::before {
+            content: "선택";
+            position: absolute;
+            bottom: -22px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffff00;
+            color: #000;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
         }
         .card[aria-pressed="true"]::after {
             content: "✓";
             position: absolute;
-            top: -12px;
-            right: -12px;
-            background: #27ae60;
+            top: -14px;
+            right: -14px;
+            background: #00cc00;
             color: white;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px solid white;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
-        .card.joker[aria-pressed="true"] { background: #ff9800; color: #1a1a2e; }
+        .card.joker[aria-pressed="true"] { background: #ff9800; color: #000; border-color: #ffff00; }
         .card.red-one { border-color: #ff0000; color: #ff0000; background: #2a1a1a; }
-        .card.red-one[aria-pressed="true"] { background: #ff0000; color: white; border-color: #ff6b6b; }
+        .card.red-one[aria-pressed="true"] { background: #ff0000; color: white; border-color: #ffff00; }
         
         /* 버튼 */
         button { padding: 12px 20px; font-size: 15px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 8px; margin: 4px; font-weight: bold; }
@@ -211,8 +226,24 @@
                 font-size: 16px;
                 border-width: 2px;
             }
-            .card[aria-pressed="true"] { transform: translateY(-8px); }
-            .hand { gap: 4px; padding: 10px; min-height: 80px; }
+            .card[aria-pressed="true"] { 
+                transform: translateY(-10px); 
+                border: 4px solid #ffff00;
+                box-shadow: 0 8px 20px rgba(255, 255, 0, 0.6);
+            }
+            .card[aria-pressed="true"]::before {
+                font-size: 10px;
+                bottom: -20px;
+                padding: 1px 4px;
+            }
+            .card[aria-pressed="true"]::after {
+                width: 22px;
+                height: 22px;
+                font-size: 12px;
+                top: -10px;
+                right: -10px;
+            }
+            .hand { gap: 4px; padding: 10px; min-height: 100px; padding-bottom: 25px; }
             
             /* 바닥 영역 */
             .card-area { padding: 12px; min-height: 70px; border-width: 2px; }
@@ -297,6 +328,151 @@
         .toast.info { background: #3498db; }
         .toast.warning { background: #e67e22; }
         .toast.success { background: #27ae60; }
+        
+        /* 방 목록 아이템 */
+        .room-item {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 8px 0;
+            border: 2px solid #333;
+            text-align: left;
+        }
+        .room-item:hover {
+            border-color: #e94560;
+        }
+        .room-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .room-item-code {
+            font-weight: bold;
+            color: #e94560;
+            font-size: 1.1em;
+        }
+        .room-item-status {
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 0.8em;
+        }
+        .room-item-status.waiting {
+            background: #27ae60;
+            color: white;
+        }
+        .room-item-status.playing {
+            background: #e67e22;
+            color: white;
+        }
+        .room-item-info {
+            color: #aaa;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .room-item-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .room-item-buttons button {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.9em;
+            margin: 0;
+        }
+        
+        /* 마인/리턴 모달 */
+        .action-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+        }
+        .action-modal-content {
+            background: #16213e;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 450px;
+            margin: 20px;
+            border: 5px solid #ffff00;
+            box-shadow: 0 0 50px rgba(255, 255, 0, 0.5);
+        }
+        .action-modal-title {
+            color: #ffff00;
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        .action-modal-message {
+            color: #fff;
+            font-size: 1.3em;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .action-modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            padding: 20px 40px;
+            font-size: 1.3em;
+            font-weight: bold;
+            border-radius: 12px;
+            min-width: 140px;
+            border: 3px solid transparent;
+        }
+        .action-btn:focus {
+            outline: 4px solid #fff;
+            outline-offset: 4px;
+        }
+        .action-btn-mine {
+            background: #9b59b6;
+            border-color: #9b59b6;
+        }
+        .action-btn-return {
+            background: #27ae60;
+            border-color: #27ae60;
+            display: none;
+        }
+        .action-btn-cancel {
+            background: #7f8c8d;
+            border-color: #7f8c8d;
+        }
+        
+        /* 모바일 마인/리턴 모달 */
+        @media (max-width: 600px) {
+            .action-modal-content {
+                padding: 30px 20px;
+                margin: 15px;
+                border-width: 4px;
+                max-width: 95%;
+            }
+            .action-modal-title {
+                font-size: 1.8em;
+            }
+            .action-modal-message {
+                font-size: 1.2em;
+                margin-bottom: 25px;
+            }
+            .action-modal-buttons {
+                flex-direction: column;
+                gap: 12px;
+            }
+            .action-btn {
+                padding: 18px 30px;
+                font-size: 1.2em;
+                width: 100%;
+                min-height: 60px;
+            }
+        }
         @keyframes toastIn {
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -489,7 +665,15 @@
                     aria-selected="true" 
                     aria-controls="panel-create"
                     tabindex="0">
-                🎮 대회 생성
+                🎮 방 만들기
+            </button>
+            <button role="tab" 
+                    id="tab-rooms" 
+                    class="tab-btn" 
+                    aria-selected="false" 
+                    aria-controls="panel-rooms"
+                    tabindex="-1">
+                📋 방 목록
             </button>
             <button role="tab" 
                     id="tab-join" 
@@ -497,15 +681,7 @@
                     aria-selected="false" 
                     aria-controls="panel-join"
                     tabindex="-1">
-                🚪 대회 참여
-            </button>
-            <button role="tab" 
-                    id="tab-spectate" 
-                    class="tab-btn" 
-                    aria-selected="false" 
-                    aria-controls="panel-spectate"
-                    tabindex="-1">
-                👀 관전
+                🔑 코드 참가
             </button>
             <button role="tab" 
                     id="tab-ai" 
@@ -527,6 +703,11 @@
                 <option value="3">3명</option>
                 <option value="4">4명</option>
             </select>
+            
+            <div style="display:flex; align-items:center; gap:10px; margin:10px 0; padding:10px; background:#1a1a2e; border-radius:10px;">
+                <input type="checkbox" id="open-room" style="width:24px; height:24px; cursor:pointer;">
+                <label for="open-room" style="color:#fff; font-size:14px; cursor:pointer;">🌐 오픈 방 (코드 없이 참가 가능)</label>
+            </div>
             
             <label for="custom-room-code" class="sr-only">방 코드 직접 설정 (선택사항)</label>
             <input type="text" id="custom-room-code" placeholder="방 코드 직접 설정 (비우면 자동생성)" maxlength="6" style="text-transform: uppercase;">
@@ -559,15 +740,16 @@
             <button class="btn-ai" onclick="startAIGame()" style="background:#9b59b6;">AI 대전 시작</button>
         </div>
         
-        <!-- 관전 패널 -->
-        <div role="tabpanel" id="panel-spectate" class="tab-panel" aria-labelledby="tab-spectate" style="display:none;" hidden>
-            <h2 class="panel-title">경기 관전하기</h2>
-            <p style="color:#aaa; font-size:0.9em; margin-bottom:15px;">진행 중인 경기를 실시간으로 관람합니다</p>
+        <!-- 방 목록 패널 -->
+        <div role="tabpanel" id="panel-rooms" class="tab-panel" aria-labelledby="tab-rooms" style="display:none;" hidden>
+            <h2 class="panel-title">🌐 참가 가능한 방</h2>
+            <p style="color:#aaa; font-size:0.9em; margin-bottom:10px;">오픈 방은 코드 없이 바로 참가할 수 있습니다</p>
             
-            <label for="spectate-room-code" class="sr-only">방 코드</label>
-            <input type="text" id="spectate-room-code" placeholder="방 코드 입력 (예: ABC123)" maxlength="6" style="text-transform: uppercase;">
+            <button onclick="refreshRoomList()" style="background:#3498db; margin-bottom:15px;">🔄 새로고침</button>
             
-            <button class="btn-spectate" onclick="joinAsSpectator()">관전하기</button>
+            <div id="room-list" style="max-height:300px; overflow-y:auto;" role="list" aria-label="방 목록">
+                <p style="color:#888; padding:20px;">방 목록을 불러오는 중...</p>
+            </div>
         </div>
         
         <!-- 방 관리 -->
@@ -736,6 +918,20 @@
     </div>
 </div>
 
+<!-- ==================== 마인/리턴 모달 ==================== -->
+<div id="mine-return-modal" class="action-modal" role="dialog" aria-labelledby="mine-return-title" aria-modal="true">
+    <div class="action-modal-content">
+        <h2 id="mine-return-title" class="action-modal-title">마인!</h2>
+        <p id="mine-return-message" class="action-modal-message">8 마인이 발생했습니다!</p>
+        <div class="action-modal-buttons">
+            <button id="btn-modal-mine" class="action-btn action-btn-mine" onclick="doModalMine()">💣 마인</button>
+            <button id="btn-modal-return" class="action-btn action-btn-return" onclick="doModalReturn()">↩️ 리턴</button>
+            <button id="btn-modal-cancel" class="action-btn action-btn-cancel" onclick="closeActionModal()">취소</button>
+        </div>
+    </div>
+</div>
+</div>
+
 <!-- ==================== Firebase SDK ==================== -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -786,6 +982,7 @@
     let finishedPlayers = [];  // 완주 순서
     let prevOpponentHandCounts = {};  // 상대방 이전 패 개수 추적
     let prevPassedBy = null;  // 이전 패스한 플레이어 추적
+    let prevCurrentTurn = null;  // 이전 턴 플레이어 추적 (관전자용)
     let joinRequests = {};  // 참가 요청 목록
     let prevGameStatus = null;  // 이전 게임 상태 추적
     
@@ -875,12 +1072,9 @@
             const rooms = snapshot.val();
             const roomCount = Object.keys(rooms).length;
             
-            if (confirm(`⚠️ 정말로 모든 방(${roomCount}개)을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 진행 중인 모든 게임이 종료됩니다.`)) {
-                if (confirm(`마지막 확인: ${roomCount}개의 방을 모두 삭제합니다.\n\n정말 계속하시겠습니까?`)) {
-                    await remove(ref(db, 'rooms'));
-                    alert(`${roomCount}개의 방이 모두 삭제되었습니다.`);
-                    announce('모든 방이 삭제되었습니다.');
-                }
+            if (confirm(`⚠️ 모든 방(${roomCount}개)을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+                await remove(ref(db, 'rooms'));
+                announce('모든 방이 삭제되었습니다.');
             }
         } catch (error) {
             console.error("전체 방 삭제 실패:", error);
@@ -925,13 +1119,18 @@
             selectedPanel.style.display = 'block';
             selectedPanel.removeAttribute('hidden');
             
-            // 스크린 리더 알림
-            // announce 제거
+            // 방 목록 탭 선택 시 자동 새로고침
+            if (tabId === 'rooms') {
+                refreshRoomList();
+            }
         }
     }
     
     // 탭 키보드 네비게이션 초기화
     document.addEventListener('DOMContentLoaded', () => {
+        // 초기 페이지 제목 설정
+        setPageTitle('lobby');
+        
         const tabList = document.querySelector('.tab-menu');
         if (!tabList) return;
         
@@ -1191,13 +1390,14 @@
     let lastAnnounceMessage = '';
     let lastAnnounceTime = 0;
     
+    // 단순한 알림 함수 - 즉시 출력
     function announce(message) {
-        // 필터링
-        if (!shouldAnnounce(message)) return;
+        if (!message) return;
         
-        // 중복 알림 방지 (같은 메시지가 500ms 내에 또 오면 무시)
         const now = Date.now();
-        if (message === lastAnnounceMessage && now - lastAnnounceTime < 500) {
+        
+        // 같은 메시지 300ms 내 중복 방지
+        if (message === lastAnnounceMessage && now - lastAnnounceTime < 300) {
             return;
         }
         lastAnnounceMessage = message;
@@ -1209,6 +1409,33 @@
         
         // 메시지 설정
         announcer.textContent = message;
+    }
+    
+    // 페이지 제목 설정 (접근성)
+    function setPageTitle(screen, extra = '') {
+        const base = '피퍼 온라인';
+        switch (screen) {
+            case 'lobby':
+                document.title = `${base} - 로비`;
+                break;
+            case 'waiting':
+                document.title = extra ? `${base} - 대기실 (${extra})` : `${base} - 대기실`;
+                break;
+            case 'playing':
+                document.title = `${base} - 게임 중`;
+                break;
+            case 'myturn':
+                document.title = `🎮 내 차례! - ${base}`;
+                break;
+            case 'spectating':
+                document.title = `${base} - 관전 중`;
+                break;
+            case 'finished':
+                document.title = `${base} - 게임 종료`;
+                break;
+            default:
+                document.title = base;
+        }
     }
     
     // 토스트 알림 (3초 후 자동 닫힘)
@@ -1231,6 +1458,223 @@
         for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
         return code;
     }
+
+    // ==================== 방 목록 ====================
+    async function refreshRoomList() {
+        const listContainer = document.getElementById('room-list');
+        listContainer.innerHTML = '<p style="color:#888; padding:20px;">방 목록을 불러오는 중...</p>';
+        
+        try {
+            const roomsRef = ref(db, 'rooms');
+            const snapshot = await get(roomsRef);
+            
+            if (!snapshot.exists()) {
+                listContainer.innerHTML = '<p style="color:#888; padding:20px;">현재 참가 가능한 방이 없습니다.</p>';
+                announce('참가 가능한 방이 없습니다.');
+                return;
+            }
+            
+            const rooms = snapshot.val();
+            const roomList = Object.entries(rooms)
+                .filter(([code, room]) => {
+                    // 오픈 방이거나, 대기 중인 방 표시
+                    return room.isOpen || room.status === 'waiting' || room.status === 'playing';
+                })
+                .map(([code, room]) => {
+                    const playerCount = Object.keys(room.players || {}).length;
+                    const spectatorCount = Object.keys(room.spectators || {}).length;
+                    const isWaiting = room.status === 'waiting';
+                    const isPlaying = room.status === 'playing';
+                    const hasRoom = playerCount < room.maxPlayers;
+                    const isOpen = room.isOpen;
+                    
+                    return {
+                        code,
+                        hostName: room.hostName || '알 수 없음',
+                        playerCount,
+                        maxPlayers: room.maxPlayers,
+                        spectatorCount,
+                        isWaiting,
+                        isPlaying,
+                        hasRoom,
+                        isOpen
+                    };
+                })
+                .sort((a, b) => {
+                    // 오픈 방 우선, 대기 중 우선
+                    if (a.isOpen !== b.isOpen) return b.isOpen - a.isOpen;
+                    if (a.isWaiting !== b.isWaiting) return b.isWaiting - a.isWaiting;
+                    return 0;
+                });
+            
+            if (roomList.length === 0) {
+                listContainer.innerHTML = '<p style="color:#888; padding:20px;">현재 참가 가능한 방이 없습니다.</p>';
+                announce('참가 가능한 방이 없습니다.');
+                return;
+            }
+            
+            listContainer.innerHTML = roomList.map(room => {
+                const statusClass = room.isWaiting ? 'waiting' : 'playing';
+                const statusText = room.isWaiting ? '대기 중' : '게임 중';
+                const openBadge = room.isOpen ? '<span style="background:#9b59b6; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; margin-left:5px;">오픈</span>' : '';
+                
+                let buttons = '';
+                if (room.isWaiting && room.hasRoom) {
+                    buttons = `<button onclick="joinOpenRoom('${room.code}')" style="background:#27ae60;">참가</button>`;
+                } else if (room.isPlaying) {
+                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;">관전</button>`;
+                } else if (room.isWaiting && !room.hasRoom) {
+                    buttons = `<button onclick="spectateRoom('${room.code}')" style="background:#3498db;">관전</button>`;
+                }
+                
+                return `
+                    <div class="room-item" role="listitem">
+                        <div class="room-item-header">
+                            <span class="room-item-code">${room.code}${openBadge}</span>
+                            <span class="room-item-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="room-item-info">
+                            👑 ${room.hostName} · 
+                            👥 ${room.playerCount}/${room.maxPlayers}명
+                            ${room.spectatorCount > 0 ? ` · 👀 ${room.spectatorCount}명 관전` : ''}
+                        </div>
+                        <div class="room-item-buttons">
+                            ${buttons}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            announce(`${roomList.length}개의 방이 있습니다.`);
+            
+        } catch (error) {
+            console.error('방 목록 조회 실패:', error);
+            listContainer.innerHTML = '<p style="color:#e74c3c; padding:20px;">방 목록을 불러오는 데 실패했습니다.</p>';
+        }
+    }
+    window.refreshRoomList = refreshRoomList;
+    
+    async function joinOpenRoom(roomCode) {
+        myName = document.getElementById('player-name').value.trim();
+        if (!myName) {
+            alert('닉네임을 입력해주세요.');
+            document.getElementById('player-name').focus();
+            return;
+        }
+        
+        // 방 정보 확인
+        const roomRef = ref(db, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+        
+        if (!snapshot.exists()) {
+            alert('존재하지 않는 방입니다.');
+            refreshRoomList();
+            return;
+        }
+        
+        const roomData = snapshot.val();
+        
+        if (roomData.status !== 'waiting') {
+            alert('이미 게임이 시작된 방입니다. 관전으로 참가합니다.');
+            spectateRoom(roomCode);
+            return;
+        }
+        
+        const playerList = Object.entries(roomData.players || {});
+        if (playerList.length >= roomData.maxPlayers) {
+            alert('방이 가득 찼습니다. 관전으로 참가합니다.');
+            spectateRoom(roomCode);
+            return;
+        }
+        
+        // 닉네임 중복 체크
+        const isDuplicateName = playerList.some(([id, p]) => p.name === myName);
+        if (isDuplicateName) {
+            alert('이미 같은 닉네임을 사용 중인 플레이어가 있습니다.');
+            return;
+        }
+        
+        // 빈 슬롯 찾기
+        let newPlayerId = null;
+        for (let i = 1; i <= roomData.maxPlayers; i++) {
+            if (!roomData.players[`player${i}`]) {
+                newPlayerId = `player${i}`;
+                break;
+            }
+        }
+        
+        if (!newPlayerId) {
+            alert('참가할 수 없습니다.');
+            return;
+        }
+        
+        myPlayerId = newPlayerId;
+        currentRoom = roomCode;
+        maxPlayers = roomData.maxPlayers;
+        
+        try {
+            await set(ref(db, `rooms/${roomCode}/players/${newPlayerId}`), {
+                name: myName,
+                connected: true,
+                finished: false,
+                rank: 0
+            });
+            
+            onDisconnect(ref(db, `rooms/${roomCode}/players/${newPlayerId}/connected`)).set(false);
+            
+            document.getElementById('lobby-main').style.display = 'none';
+            document.getElementById('lobby-waiting').style.display = 'block';
+            document.getElementById('room-code-display').textContent = roomCode;
+            document.getElementById('max-player-count').textContent = roomData.maxPlayers;
+            
+            announce(`${roomCode} 방에 참가했습니다.`);
+            setPageTitle('waiting', roomCode);
+            
+            watchRoom(roomCode);
+        } catch (error) {
+            console.error('방 참가 실패:', error);
+            alert('방 참가에 실패했습니다.');
+        }
+    }
+    window.joinOpenRoom = joinOpenRoom;
+    
+    async function spectateRoom(roomCode) {
+        myName = document.getElementById('player-name').value.trim() || '관전자';
+        
+        const roomRef = ref(db, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+        
+        if (!snapshot.exists()) {
+            alert('존재하지 않는 방입니다.');
+            refreshRoomList();
+            return;
+        }
+        
+        currentRoom = roomCode;
+        isSpectator = true;
+        mySpectatorId = 'spec_' + Date.now();
+        
+        try {
+            await set(ref(db, `rooms/${roomCode}/spectators/${mySpectatorId}`), {
+                name: myName,
+                joinedAt: serverTimestamp()
+            });
+            
+            onDisconnect(ref(db, `rooms/${roomCode}/spectators/${mySpectatorId}`)).remove();
+            
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            
+            announce(`${roomCode} 방을 관전합니다.`);
+            setPageTitle('spectating');
+            
+            watchRoom(roomCode);
+        } catch (error) {
+            console.error('관전 참가 실패:', error);
+            alert('관전 참가에 실패했습니다.');
+        }
+    }
+    window.spectateRoom = spectateRoom;
 
     function createShuffledDeck() {
         const deck = [];
@@ -1293,6 +1737,7 @@
 
         myName = document.getElementById('player-name').value.trim() || '방장';
         maxPlayers = parseInt(document.getElementById('player-count').value);
+        const isOpenRoom = document.getElementById('open-room').checked;
         
         // 커스텀 방 코드 또는 자동 생성
         let customCode = document.getElementById('custom-room-code').value.trim().toUpperCase();
@@ -1324,6 +1769,8 @@
                 code: roomCode,
                 status: 'waiting',
                 maxPlayers: maxPlayers,
+                isOpen: isOpenRoom,
+                hostName: myName,
                 createdAt: serverTimestamp(),
                 players: {
                     player1: {
@@ -1343,7 +1790,9 @@
             document.getElementById('room-code-display').textContent = roomCode;
             document.getElementById('max-player-count').textContent = maxPlayers;
             
-            announce(`방이 생성되었습니다. 방 코드 ${roomCode.split('').join(' ')}. ${maxPlayers}인 게임.`);
+            const openText = isOpenRoom ? '오픈 방입니다.' : '';
+            announce(`방이 생성되었습니다. 방 코드 ${roomCode.split('').join(' ')}. ${maxPlayers}인 게임. ${openText}`);
+            setPageTitle('waiting', roomCode);
 
             watchRoom(roomCode);
 
@@ -1477,6 +1926,7 @@
             document.getElementById('max-player-count').textContent = maxPlayers;
 
             announce("방에 참가했습니다.");
+            setPageTitle('waiting', roomCode);
             watchRoom(roomCode);
 
         } catch (error) {
@@ -1794,10 +2244,12 @@
             document.getElementById('player-controls').style.display = 'none';
             document.getElementById('my-card-info').style.display = 'none';
             announce('관전 모드로 경기를 관람합니다.');
+            setPageTitle('spectating');
         } else {
             document.getElementById('spectator-banner').style.display = 'none';
             document.getElementById('player-controls').style.display = 'block';
             document.getElementById('my-card-info').style.display = 'block';
+            setPageTitle('playing');
         }
     }
 
@@ -1903,7 +2355,7 @@
                 if (prevCount !== undefined && prevCount > 3 && currentCount === 3) {
                     const playerName = p.name || id;
                     playSound('warning');
-                    // alert 제거 (게임 멈춤 방지)
+                    announce(`주의! ${playerName} 카드 3장!`);
                 }
                 
                 // 현재 개수 저장
@@ -1913,19 +2365,16 @@
         
         // 행동 알림 (관전자는 모든 행동, 플레이어는 상대 행동만)
         if (gs.lastMoveBy && gs.lastMove) {
-            const shouldAnnounce = isSpectator || gs.lastMoveBy !== myPlayerId;
+            const shouldAnnounceMove = isSpectator || gs.lastMoveBy !== myPlayerId;
             
-            if (shouldAnnounce && (!prevLastMove || prevLastMove.val !== gs.lastMove.val || prevLastMove.type !== gs.lastMove.type)) {
+            if (shouldAnnounceMove && (!prevLastMove || prevLastMove.val !== gs.lastMove.val || prevLastMove.type !== gs.lastMove.type)) {
                 const playerName = players[gs.lastMoveBy]?.name || gs.lastMoveBy;
                 const moveDesc = getMoveDescription(gs.lastMove);
                 
                 // 상대방 카드 낸 사운드
                 playSound('opponent');
                 
-                // 간략한 메시지 (채팅 알림 중이면 스킵)
-                if (!skipNextGameAnnounce) {
-                    announce(`${playerName}: ${moveDesc}`);
-                }
+                announce(`${playerName}: ${moveDesc}`);
                 logMessage(`${playerName}: ${moveDesc}`);
                 
                 // 마인 감지: moveDesc에 "마인"이 포함되어 있으면 마인
@@ -1938,23 +2387,41 @@
             hideReturnPanel();
         }
         
+        // 턴 변경 시 사운드와 알림
+        const justBecameMyTurn = !isSpectator && !wasMyTurn && isMyTurn && !gs.lastMove?.isMine;
+        if (justBecameMyTurn) {
+            playSound('myturn');
+            setPageTitle('myturn');
+        } else if (!isSpectator && wasMyTurn && !isMyTurn) {
+            // 내 차례가 끝났을 때
+            setPageTitle('playing');
+        }
+        
+        // 관전자용 턴 변경 알림
+        if (isSpectator && currentTurn !== prevCurrentTurn && currentTurn) {
+            const turnPlayerName = players[currentTurn]?.name || currentTurn;
+            setTimeout(() => {
+                announce(`${turnPlayerName}의 차례`);
+            }, 300);
+        }
+        prevCurrentTurn = currentTurn;
+        
         // 패스 알림 (관전자는 모든 패스, 플레이어는 상대 패스만)
         if (gs.passedBy && gs.passedBy !== prevPassedBy) {
             const shouldAnnouncePass = isSpectator || gs.passedBy !== myPlayerId;
             if (shouldAnnouncePass) {
                 const playerName = players[gs.passedBy]?.name || gs.passedBy;
-                if (!skipNextGameAnnounce) {
-                    announce(`${playerName}: 패스`);
-                }
+                announce(`${playerName}: 패스`);
                 logMessage(`${playerName}: 패스`);
             }
         }
         prevPassedBy = gs.passedBy;
         
-        // 턴 변경 시 사운드와 알림
-        if (!isSpectator && !wasMyTurn && isMyTurn && !gs.lastMove?.isMine) {
-            playSound('myturn');
-            announce('내 차례');
+        // 내 차례 알림 (패스 알림 후에)
+        if (justBecameMyTurn) {
+            setTimeout(() => {
+                announce('내 차례');
+            }, 300);
         }
         
         // UI 업데이트
@@ -2067,29 +2534,16 @@
             });
             card.addEventListener('keydown', (e) => handleCardKeydown(e, idx));
             
-            // 포커스 시 카드 정보 알림
+            // 포커스 시 인덱스만 저장 (알림은 키보드 이동 시에만)
             card.addEventListener('focus', () => {
                 currentFocusIndex = idx;
-                if (!skipFocusAnnounce) {
-                    const selected = selectedIndices.includes(idx);
-                    announce(`${cardName}${selected ? ' 선택됨' : ''}`);
-                }
             });
             
             handDiv.appendChild(card);
         });
         
-        // 포커스 복원 (카드 영역에 있었고, 카드를 내지 않은 경우만)
-        if (savedFocusIndex >= 0 && myHand.length > 0 && !skipFocusRestore) {
-            const newIdx = Math.min(savedFocusIndex, myHand.length - 1);
-            const targetCard = document.getElementById(`card-${newIdx}`);
-            if (targetCard) {
-                skipFocusAnnounce = true;
-                targetCard.focus();
-                setTimeout(() => { skipFocusAnnounce = false; }, 50);
-            }
-        }
-        skipFocusRestore = false;  // 플래그 리셋
+        // 포커스 복원 완전히 제거 - 알림 끊김 방지
+        // 사용자가 직접 Tab/방향키로 이동해야 함
         
         document.getElementById('hand-count').textContent = myHand.length;
         
@@ -2112,10 +2566,28 @@
             }
             mineBtn.style.display = canMine ? 'inline-block' : 'none';
             
-            // 새로 마인 가능해지면 알림
+            // 새로 마인 가능해지면 모달 띄우기
             if (canMine && !wasVisible) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
-                announce(`${displayVal} 마인 가능! Alt+M 또는 마인 버튼을 누르세요.`);
+                showActionModal('mine', displayVal);
+            }
+        }
+        
+        // 리턴 버튼 표시 (마인 페어 바닥에 같은 숫자 싱글이 있을 때)
+        const returnBtn = document.getElementById('btn-return');
+        if (returnBtn) {
+            const wasReturnVisible = returnBtn.style.display !== 'none';
+            let canReturn = false;
+            if (lastMove && lastMove.isMine && lastMove.type === 'PAIR') {
+                const targetVal = lastMove.val;
+                canReturn = myHand.some(card => getCardValue(card) === targetVal);
+            }
+            returnBtn.style.display = canReturn ? 'inline-block' : 'none';
+            
+            // 새로 리턴 가능해지면 모달 띄우기
+            if (canReturn && !wasReturnVisible) {
+                const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
+                showActionModal('return', displayVal);
             }
         }
     }
@@ -2216,6 +2688,15 @@
         
         currentFocusIndex = newIndex;
         cards[newIndex].focus();
+        
+        // 키보드로 이동 시에만 카드 정보 알림
+        if (myHand[newIndex] !== undefined) {
+            const actualValue = getCardValue(myHand[newIndex]);
+            const isRed = isRedOne(myHand[newIndex]);
+            const cardName = actualValue === 16 ? 'X' : (isRed ? '빨간 1' : actualValue);
+            const selected = selectedIndices.includes(newIndex);
+            announce(`${cardName}${selected ? ' 선택됨' : ''}`);
+        }
     }
 
     // ==================== 정보 업데이트 ====================
@@ -2340,12 +2821,20 @@
             return [16];  // X 싱글
         }
         
-        // X만으로 페어(2개), 밤(3개), 밤투(4개) → 숫자 물어보기
-        if (sortedNormal.length === 0 && jokerCount >= 2 && jokerCount <= 4) {
-            let input = prompt('X를 어떤 숫자로? (1~15)', '1');
+        // X 페어 (X 2장) → 그냥 X 페어로 냄 (prompt 없음)
+        if (cards.length === 2 && jokerCount === 2) {
+            return [16, 16];  // X 페어
+        }
+        
+        // X 밤 (X 3장) 또는 X 밤투 (X 4장) → 숫자 물어보기
+        if (sortedNormal.length === 0 && jokerCount >= 3 && jokerCount <= 4) {
+            let input = prompt('X를 어떤 숫자로 대체할까요? (1~15)');
             if (input === null) return cards;  // 취소시 원본 반환
             let targetVal = parseInt(input);
-            if (isNaN(targetVal) || targetVal < 1 || targetVal > 15) targetVal = 1;
+            if (isNaN(targetVal) || targetVal < 1 || targetVal > 15) {
+                announce('잘못된 입력입니다.');
+                return cards;
+            }
             const result = [...cards];
             jokerIndices.forEach(idx => result[idx] = targetVal);
             return result;
@@ -2363,7 +2852,7 @@
         if (cards.length >= 3 && jokerCount > 0) {
             const result = [...cards];
             for (let i = 0; i < jokerCount; i++) {
-                let input = prompt(`${i + 1}번째 X를 어떤 숫자로? (1~15, 또는 x)`, '1');
+                let input = prompt(`${i + 1}번째 X를 어떤 숫자로 대체할까요? (1~15, 또는 x)`);
                 if (input === null) return cards;  // 취소시 원본 반환
                 input = input.trim().toLowerCase();
                 let targetVal;
@@ -2371,14 +2860,17 @@
                     targetVal = 16;
                 } else {
                     targetVal = parseInt(input);
-                    if (isNaN(targetVal) || targetVal < 1 || targetVal > 16) targetVal = 1;
+                    if (isNaN(targetVal) || targetVal < 1 || targetVal > 16) {
+                        announce('잘못된 입력입니다.');
+                        return cards;
+                    }
                 }
                 result[jokerIndices[i]] = targetVal;
             }
             return result;
         }
         
-        // 페어 시도 (2장)
+        // 페어 시도 (2장: 일반 1장 + X 1장)
         if (cards.length === 2 && jokerCount === 1) {
             const result = [...cards];
             result[jokerIndices[0]] = sortedNormal[0];
@@ -2559,25 +3051,27 @@
             return;
         }
         
-        if (currentTurn !== myPlayerId) {
-            console.log('playMove: not my turn', currentTurn, myPlayerId);
-            return;  // 내 차례 아니면 조용히 무시
-        }
+        isProcessing = true;  // 즉시 설정하여 중복 호출 방지
         
-        if (selectedIndices.length === 0) {
-            announce('카드를 먼저 선택하세요.');
-            return;
-        }
-        
-        isProcessing = true;
+        // 버튼도 비활성화하여 중복 클릭 방지
+        const playBtn = document.getElementById('btn-play');
+        if (playBtn) playBtn.disabled = true;
         
         try {
+            if (currentTurn !== myPlayerId) {
+                console.log('playMove: not my turn', currentTurn, myPlayerId);
+                return;  // 내 차례 아니면 조용히 무시
+            }
+            
+            if (selectedIndices.length === 0) {
+                announce('카드를 먼저 선택하세요.');
+                return;
+            }
+            
             const originalCards = selectedIndices.map(idx => myHand[idx]);
-            console.log('playMove: originalCards', originalCards);
             
             // X(조커) 자동 대체
             let cards = autoReplaceJokers([...originalCards]);
-            console.log('playMove: cards after joker replace', cards);
             
             // 사용자가 취소한 경우 (원본과 동일하고 조커 포함)
             if (cards === originalCards && originalCards.some(c => getCardValue(c) === 16)) {
@@ -2594,7 +3088,6 @@
             });
             
             const move = getMoveInfo(cards);
-            console.log('playMove: move', move);
             
             if (!move) {
                 announce('유효하지 않은 조합입니다.');
@@ -2625,8 +3118,6 @@
                 return;
             }
             
-            console.log('playMove: canBeat?', canBeat(move), 'lastMove:', lastMove);
-            
             if (canBeat(move)) {
                 announce(`나: ${getMoveDescription(move)}`);
                 logMessage(`나: ${getMoveDescription(move)}`);
@@ -2636,15 +3127,15 @@
             }
         } finally {
             isProcessing = false;
+            // 버튼 재활성화 (내 턴일 때만)
+            const playBtn = document.getElementById('btn-play');
+            if (playBtn && currentTurn === myPlayerId) playBtn.disabled = false;
         }
     }
 
     async function submitMove(move, keepTurn) {
         const newHand = myHand.filter((_, i) => !selectedIndices.includes(i));
         selectedIndices = [];
-        
-        // 카드 낸 후에는 포커스 복원 안 함
-        skipFocusRestore = true;
         
         const updates = {
             [`gameState/hands/${myPlayerId}`]: newHand,
@@ -2827,6 +3318,131 @@
         }
     }
     
+    // ==================== 마인/리턴 모달 ====================
+    let currentActionModalVal = null;
+    let actionModalFocusTrapHandler = null;
+    
+    function showActionModal(type, val) {
+        const modal = document.getElementById('mine-return-modal');
+        const title = document.getElementById('mine-return-title');
+        const message = document.getElementById('mine-return-message');
+        const mineBtn = document.getElementById('btn-modal-mine');
+        const returnBtn = document.getElementById('btn-modal-return');
+        
+        currentActionModalVal = val;
+        
+        if (type === 'mine') {
+            title.textContent = '💣 마인 가능!';
+            message.textContent = `${val} 마인을 하시겠습니까?`;
+            mineBtn.style.display = 'block';
+            returnBtn.style.display = 'none';
+            announce(`${val} 마인 가능! 마인 또는 취소를 선택하세요.`);
+        } else if (type === 'return') {
+            title.textContent = '↩️ 리턴 가능!';
+            message.textContent = `${val} 리턴을 하시겠습니까?`;
+            mineBtn.style.display = 'none';
+            returnBtn.style.display = 'block';
+            announce(`${val} 리턴 가능! 리턴 또는 취소를 선택하세요.`);
+        }
+        
+        modal.style.display = 'flex';
+        
+        // 포커스 트랩 설정
+        const focusableButtons = modal.querySelectorAll('button');
+        const visibleButtons = Array.from(focusableButtons).filter(btn => btn.style.display !== 'none');
+        
+        // 첫 번째 버튼에 포커스
+        setTimeout(() => {
+            visibleButtons[0]?.focus();
+        }, 50);
+        
+        // 포커스 트랩 핸들러
+        if (actionModalFocusTrapHandler) {
+            document.removeEventListener('keydown', actionModalFocusTrapHandler);
+        }
+        
+        actionModalFocusTrapHandler = function(e) {
+            if (modal.style.display !== 'flex') return;
+            
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeActionModal();
+                return;
+            }
+            
+            if (e.key === 'Tab') {
+                const firstBtn = visibleButtons[0];
+                const lastBtn = visibleButtons[visibleButtons.length - 1];
+                
+                if (e.shiftKey && document.activeElement === firstBtn) {
+                    e.preventDefault();
+                    lastBtn.focus();
+                } else if (!e.shiftKey && document.activeElement === lastBtn) {
+                    e.preventDefault();
+                    firstBtn.focus();
+                }
+            }
+        };
+        document.addEventListener('keydown', actionModalFocusTrapHandler);
+    }
+    
+    function closeActionModal() {
+        const modal = document.getElementById('mine-return-modal');
+        modal.style.display = 'none';
+        currentActionModalVal = null;
+        
+        if (actionModalFocusTrapHandler) {
+            document.removeEventListener('keydown', actionModalFocusTrapHandler);
+            actionModalFocusTrapHandler = null;
+        }
+        
+        // 포커스를 카드 내기 버튼으로 이동
+        setTimeout(() => {
+            document.getElementById('btn-play')?.focus();
+        }, 50);
+        
+        announce('취소되었습니다.');
+    }
+    window.closeActionModal = closeActionModal;
+    
+    async function doModalMine() {
+        const modal = document.getElementById('mine-return-modal');
+        modal.style.display = 'none';
+        currentActionModalVal = null;
+        
+        if (actionModalFocusTrapHandler) {
+            document.removeEventListener('keydown', actionModalFocusTrapHandler);
+            actionModalFocusTrapHandler = null;
+        }
+        
+        await autoMine();
+        
+        // 포커스를 카드 내기 버튼으로 이동
+        setTimeout(() => {
+            document.getElementById('btn-play')?.focus();
+        }, 100);
+    }
+    window.doModalMine = doModalMine;
+    
+    async function doModalReturn() {
+        const modal = document.getElementById('mine-return-modal');
+        modal.style.display = 'none';
+        currentActionModalVal = null;
+        
+        if (actionModalFocusTrapHandler) {
+            document.removeEventListener('keydown', actionModalFocusTrapHandler);
+            actionModalFocusTrapHandler = null;
+        }
+        
+        await doReturn();
+        
+        // 포커스를 카드 내기 버튼으로 이동
+        setTimeout(() => {
+            document.getElementById('btn-play')?.focus();
+        }, 100);
+    }
+    window.doModalReturn = doModalReturn;
+    
     function showReturnPanel(mineVal, mineByName) {
         // 내 패에 해당 숫자가 있는지 확인
         const hasReturnCard = myHand.some(card => getCardValue(card) === mineVal);
@@ -2945,6 +3561,7 @@
         
         // 게임 종료 사운드
         playSound('gameover');
+        setPageTitle('finished');
         
         // 게임 화면 완전히 숨기기 (스크린리더에서도 탐색 안 됨)
         document.getElementById('game-container').style.display = 'none';
@@ -3059,6 +3676,7 @@
         mySpectatorId = null;
         prevOpponentHandCounts = {};
         prevPassedBy = null;
+        prevCurrentTurn = null;
         joinRequests = {};
         lastChatCount = 0;
         prevGameStatus = null;
@@ -3076,6 +3694,8 @@
         document.getElementById('lobby-waiting').style.display = 'none';
         document.getElementById('log').innerHTML = '';
         document.getElementById('chat-messages').innerHTML = '';
+        
+        setPageTitle('lobby');
     }
 
     // ==================== 관전자 참가 요청 ====================
