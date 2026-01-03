@@ -96,7 +96,7 @@
             box-shadow: 0 10px 25px rgba(255, 255, 0, 0.6), 0 0 0 4px #e94560;
         }
         .card[aria-pressed="true"]::before {
-            content: "선택";
+            content: "선택" / "";  /* 스크린리더에서 숨김 (aria-label로 이미 전달됨) */
             position: absolute;
             bottom: -22px;
             left: 50%;
@@ -108,9 +108,10 @@
             padding: 2px 6px;
             border-radius: 4px;
             white-space: nowrap;
+            speak: never;  /* 구형 브라우저 호환 */
         }
         .card[aria-pressed="true"]::after {
-            content: "✓";
+            content: "✓" / "";  /* 스크린리더에서 숨김 */
             position: absolute;
             top: -14px;
             right: -14px;
@@ -126,6 +127,7 @@
             justify-content: center;
             border: 3px solid white;
             box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            speak: never;
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
         .card.joker[aria-pressed="true"] { background: #ff9800; color: #000; border-color: #ffff00; }
