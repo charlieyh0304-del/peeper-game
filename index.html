@@ -992,7 +992,6 @@
     let skipNextGameAnnounce = false;  // 채팅 알림 후 게임 알림 스킵
     let isProcessing = false;  // 카드 내기/패스 처리 중
     let skipFocusRestore = false;  // 카드 낸 후 포커스 복원 안 함
-    let skipFocusAnnounce = false;  // focus 이벤트 알림 스킵 플래그
     
     // 마인/리턴 관련 변수
     let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
@@ -2437,16 +2436,8 @@
             setTimeout(() => {
                 const firstCard = document.querySelector('.card');
                 if (firstCard) {
-                    // focus 이벤트 알림 스킵 (여기서 직접 알림)
-                    skipFocusAnnounce = true;
                     firstCard.focus();
-                    setTimeout(() => { skipFocusAnnounce = false; }, 100);
-                    
-                    // 첫 카드 정보 알림
-                    const actualValue = getCardValue(myHand[0]);
-                    const isRed = isRedOne(myHand[0]);
-                    const cardName = actualValue === 16 ? 'X' : (isRed ? '빨간 1' : actualValue);
-                    announce(cardName);
+                    // 첫 카드 정보는 aria-label이 자동으로 읽힘
                 }
             }, 500);
         }
@@ -2538,6 +2529,7 @@
             
             const cardName = isJoker ? 'X' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
+            // aria-label: 모바일 스크린리더가 자동으로 읽음
             card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
             card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
             card.textContent = isJoker ? 'X' : actualValue;
@@ -2547,20 +2539,9 @@
             });
             card.addEventListener('keydown', (e) => handleCardKeydown(e, idx));
             
-            // 포커스 시 인덱스 저장 및 모바일용 알림
+            // 포커스 시 인덱스만 저장 (알림은 aria-label이 자동으로 처리)
             card.addEventListener('focus', () => {
-                const prevIndex = currentFocusIndex;
                 currentFocusIndex = idx;
-                
-                // 다른 카드에서 이동해온 경우에만 알림 (모바일 터치 지원)
-                // 단, 방금 선택/해제한 카드는 알림 스킵
-                if (prevIndex !== idx && !skipFocusAnnounce) {
-                    const actualValue = getCardValue(myHand[idx]);
-                    const isRed = isRedOne(myHand[idx]);
-                    const cardName = actualValue === 16 ? 'X' : (isRed ? '빨간 1' : actualValue);
-                    const isSelected = selectedIndices.includes(idx);
-                    announce(`${cardName}${isSelected ? ' 선택됨' : ''}`);
-                }
             });
             
             handDiv.appendChild(card);
@@ -2639,11 +2620,6 @@
             announce(`${cardName} 선택`);
         }
         
-        // 선택 후 초점 유지 (focus 이벤트 알림 스킵)
-        skipFocusAnnounce = true;
-        card.focus();
-        setTimeout(() => { skipFocusAnnounce = false; }, 50);
-        
         updateSelectionInfo();
     }
 
@@ -2710,11 +2686,7 @@
         if (cards.length === 0) return;
         
         currentFocusIndex = newIndex;
-        
-        // focus 이벤트 알림 스킵 (여기서 직접 알림)
-        skipFocusAnnounce = true;
         cards[newIndex].focus();
-        setTimeout(() => { skipFocusAnnounce = false; }, 100);
         
         // 키보드로 이동 시 카드 정보 알림
         if (myHand[newIndex] !== undefined) {
@@ -2722,7 +2694,7 @@
             const isRed = isRedOne(myHand[newIndex]);
             const cardName = actualValue === 16 ? 'X' : (isRed ? '빨간 1' : actualValue);
             const selected = selectedIndices.includes(newIndex);
-            announce(`${cardName}${selected ? ' 선택됨' : ''}`);
+            announce(`${cardName}${selected ? ', 선택됨' : ''}`);
         }
     }
 
