@@ -2352,8 +2352,11 @@
             const passBtn = document.getElementById('btn-pass');
             if (playBtn) playBtn.disabled = false;
             if (passBtn) passBtn.disabled = false;
+
+            // 마인 성공 처리 완료, 이후 코드 실행 방지
+            return;
         }
-        
+
         // 완주자 목록
         finishedPlayers = gs.finishedOrder || [];
         
