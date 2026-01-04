@@ -2360,20 +2360,20 @@
         // 완주자 목록
         finishedPlayers = gs.finishedOrder || [];
         
-        // 타일 3개 남았을 때 알림 (플레이어/관전자 모두)
+        // 타일 3개 이하 남았을 때 알림 (플레이어/관전자 모두)
         Object.entries(players).forEach(([id, p]) => {
             // 관전자는 모든 플레이어 체크, 플레이어는 상대방만 체크
             if (isSpectator || id !== myPlayerId) {
                 const currentCount = gs.hands?.[id]?.length || 0;
                 const prevCount = prevOpponentHandCounts[id];
-                
-                // 이전에 3개 초과였다가 3개가 됐을 때 알림
-                if (prevCount !== undefined && prevCount > 3 && currentCount === 3) {
+
+                // 이전보다 줄었고 3장 이하가 됐을 때 알림
+                if (prevCount !== undefined && prevCount > currentCount && currentCount <= 3 && currentCount > 0) {
                     const playerName = p.name || id;
                     playSound('warning');
-                    announce(`주의! ${playerName} 카드 3장!`);
+                    announce(`주의! ${playerName} 카드 ${currentCount}장!`);
                 }
-                
+
                 // 현재 개수 저장
                 prevOpponentHandCounts[id] = currentCount;
             }
@@ -3188,11 +3188,19 @@
         // 사운드 재생
         playSound('play');
         
-        // 3장 남으면 경고음
-        if (newHand.length === 3) {
+        // 3장 이하 남으면 경고음
+        if (newHand.length <= 3 && newHand.length > 0) {
             setTimeout(() => playSound('warning'), 300);
-            announce('주의! 카드가 3장 남았습니다!');
+            announce(`주의! 카드가 ${newHand.length}장 남았습니다!`);
         }
+
+        // 카드 낸 후 포커스를 카드 내기 버튼으로 이동 (알림 끊김 방지를 위해 지연)
+        setTimeout(() => {
+            const playBtn = document.getElementById('btn-play');
+            if (playBtn && !playBtn.disabled) {
+                playBtn.focus();
+            }
+        }, 500);
     }
 
     // ==================== 패스 ====================
