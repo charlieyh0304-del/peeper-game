@@ -788,8 +788,8 @@
         </div>
         
         <p class="waiting-msg" role="status" aria-live="polite" id="waiting-message">👀 다른 플레이어를 기다리는 중...</p>
-        <button id="btn-start-game" onclick="startGame()" style="background:#27ae60; display:none; font-size:1.2em; padding:15px 30px; margin:10px 0;">🎮 게임 시작</button>
-        <button onclick="cancelRoom()" style="background:#e74c3c;">취소하기</button>
+        <button type="button" id="btn-start-game" onclick="startGame()" style="background:#27ae60; display:none; font-size:1.3em; padding:20px 40px; margin:15px 0; width:100%; cursor:pointer;">🎮 게임 시작</button>
+        <button type="button" onclick="cancelRoom()" style="background:#e74c3c;">취소하기</button>
     </div>
 </div>
 
@@ -2219,12 +2219,21 @@
         const startBtn = document.getElementById('btn-start-game');
         if (startBtn) {
             const isFull = remaining <= 0;
-            startBtn.style.display = (isHost && isFull) ? 'block' : 'none';
+            const shouldShow = isHost && isFull;
+            const wasHidden = startBtn.style.display === 'none';
+            startBtn.style.display = shouldShow ? 'block' : 'none';
+
+            // 버튼이 새로 표시될 때 알림
+            if (shouldShow && wasHidden) {
+                announce('게임 시작 버튼이 활성화되었습니다.');
+            }
         }
     }
 
     // ==================== 게임 시작 (방장만) ====================
     async function startGame() {
+        console.log('startGame called, myPlayerId:', myPlayerId, 'currentRoom:', currentRoom);
+
         if (myPlayerId !== 'player1') {
             alert('방장만 게임을 시작할 수 있습니다.');
             return;
