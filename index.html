@@ -1085,7 +1085,8 @@
     // ==================== 탭 메뉴 ====================
     const tabNames = {
         'create': '대회 생성',
-        'join': '대회 참여', 
+        'rooms': '방 목록',
+        'join': '대회 참여',
         'spectate': '관전',
         'ai': 'AI 대전'
     };
@@ -2578,7 +2579,11 @@
             // 새로 마인 가능해지면 모달 띄우기
             if (canMine && !wasVisible) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
-                showActionModal('mine', displayVal);
+                // 바닥 카드 정보 먼저 알림 후 마인 모달 표시
+                announce(`바닥: ${displayVal} 싱글`);
+                setTimeout(() => {
+                    showActionModal('mine', displayVal);
+                }, 300);
             }
         }
         
@@ -2596,7 +2601,11 @@
             // 새로 리턴 가능해지면 모달 띄우기
             if (canReturn && !wasReturnVisible) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
-                showActionModal('return', displayVal);
+                // 바닥 마인 정보 먼저 알림 후 리턴 모달 표시
+                announce(`바닥: ${displayVal} 마인`);
+                setTimeout(() => {
+                    showActionModal('return', displayVal);
+                }, 300);
             }
         }
     }
