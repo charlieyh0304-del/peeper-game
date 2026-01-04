@@ -96,18 +96,15 @@
             box-shadow: 0 10px 25px rgba(255, 255, 0, 0.6), 0 0 0 4px #e94560;
         }
         .card[aria-pressed="true"]::before {
-            content: "선택";
+            content: "";
             position: absolute;
-            bottom: -22px;
+            bottom: -18px;
             left: 50%;
             transform: translateX(-50%);
+            width: 30px;
+            height: 6px;
             background: #ffff00;
-            color: #000;
-            font-size: 11px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            white-space: nowrap;
+            border-radius: 3px;
             pointer-events: none;
         }
         .card[aria-pressed="true"]::after {
@@ -855,8 +852,8 @@
     
     <!-- 선택한 카드 (플레이어 전용) -->
     <div id="player-controls">
-        <h2 id="selection-heading" aria-hidden="true">선택</h2>
-        <div id="selection-info" aria-hidden="true">
+        <h2 id="selection-heading" aria-hidden="true" role="presentation" tabindex="-1" inert>선택</h2>
+        <div id="selection-info" aria-hidden="true" role="presentation" tabindex="-1" inert>
         </div>
         
         <!-- H2: 내 패 -->
