@@ -2115,7 +2115,7 @@
         }
     });
 
-    async function handleRoomUpdate(data) {
+    function handleRoomUpdate(data) {
         players = data.players || {};
         spectators = data.spectators || {};
         joinRequests = data.joinRequests || {};
@@ -2334,8 +2334,8 @@
             // 로컬 변수 먼저 업데이트
             lastMove = null;
 
-            // Firebase 업데이트 (await로 완료 대기)
-            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+            // Firebase 업데이트
+            update(ref(db, `rooms/${currentRoom}/gameState`), {
                 lastMove: null,
                 lastMoveBy: null,
                 passCount: 0
