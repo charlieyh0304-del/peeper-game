@@ -108,6 +108,7 @@
             padding: 2px 6px;
             border-radius: 4px;
             white-space: nowrap;
+            pointer-events: none;
         }
         .card[aria-pressed="true"]::after {
             content: "✓";
@@ -126,6 +127,7 @@
             justify-content: center;
             border: 3px solid white;
             box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            pointer-events: none;
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
         .card.joker[aria-pressed="true"] { background: #ff9800; color: #000; border-color: #ffff00; }
@@ -2525,13 +2527,19 @@
             card.className = 'card' + (isJoker ? ' joker' : '') + (isRed ? ' red-one' : '');
             card.id = `card-${idx}`;
             card.setAttribute('tabindex', '0');
-            
+            card.setAttribute('role', 'button');
+
             const cardName = isJoker ? 'X' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
             // aria-label: 모바일 스크린리더가 자동으로 읽음
             card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
             card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
-            card.textContent = isJoker ? 'X' : actualValue;
+
+            // 시각적 텍스트는 aria-hidden으로 숨김 (aria-label로만 읽히도록)
+            const visualText = document.createElement('span');
+            visualText.setAttribute('aria-hidden', 'true');
+            visualText.textContent = isJoker ? 'X' : actualValue;
+            card.appendChild(visualText);
             
             card.addEventListener('click', () => {
                 if (currentTurn === myPlayerId) toggleCard(idx);
