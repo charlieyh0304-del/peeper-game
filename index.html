@@ -788,6 +788,7 @@
         </div>
         
         <p class="waiting-msg" role="status" aria-live="polite" id="waiting-message">👀 다른 플레이어를 기다리는 중...</p>
+        <button id="btn-start-game" onclick="startGame()" style="background:#27ae60; display:none; font-size:1.2em; padding:15px 30px; margin:10px 0;">🎮 게임 시작</button>
         <button onclick="cancelRoom()" style="background:#e74c3c;">취소하기</button>
     </div>
 </div>
@@ -1901,25 +1902,7 @@
 
             onDisconnect(ref(db, `rooms/${roomCode}/players/${myPlayerId}/connected`)).set(false);
 
-            // 인원이 다 찼으면 게임 시작
-            const updatedSnapshot = await get(ref(db, `rooms/${roomCode}/players`));
-            const currentPlayerCount = Object.keys(updatedSnapshot.val() || {}).length;
-
-            if (currentPlayerCount >= maxPlayers) {
-                // 게임 시작 - 카드 분배 및 선 정하기
-                const { hands, firstPlayer } = distributeCardsWithFirst(maxPlayers);
-                await update(ref(db, `rooms/${roomCode}`), {
-                    status: 'playing',
-                    gameState: {
-                        hands: hands,
-                        currentTurn: firstPlayer,
-                        lastMove: null,
-                        lastMoveBy: null,
-                        passCount: 0,
-                        finishedOrder: []
-                    }
-                });
-            }
+            // 방장이 게임 시작 버튼을 눌러야 시작됨 (자동 시작 제거)
 
             document.getElementById('lobby-main').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'block';
@@ -2228,13 +2211,63 @@
         }
         
         const remaining = data.maxPlayers - playerList.length;
-        document.getElementById('waiting-message').textContent = 
-            remaining > 0 ? `👀 ${remaining}명 더 필요합니다...` : '🎮 게임 시작!';
+        document.getElementById('waiting-message').textContent =
+            remaining > 0 ? `👀 ${remaining}명 더 필요합니다...` : '🎮 인원이 찼습니다!';
+
+        // 게임 시작 버튼 표시/숨김 (방장이고 인원이 다 찼을 때만)
+        const startBtn = document.getElementById('btn-start-game');
+        if (startBtn) {
+            const isFull = remaining <= 0;
+            startBtn.style.display = (isHost && isFull) ? 'block' : 'none';
+        }
+    }
+
+    // ==================== 게임 시작 (방장만) ====================
+    async function startGame() {
+        if (myPlayerId !== 'player1') {
+            alert('방장만 게임을 시작할 수 있습니다.');
+            return;
+        }
+
+        try {
+            const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+            const roomData = snapshot.val();
+
+            if (!roomData) {
+                alert('방 정보를 찾을 수 없습니다.');
+                return;
+            }
+
+            const playerCount = Object.keys(roomData.players || {}).length;
+            if (playerCount < roomData.maxPlayers) {
+                alert('아직 인원이 다 차지 않았습니다.');
+                return;
+            }
+
+            // 게임 시작 - 카드 분배 및 선 정하기
+            const { hands, firstPlayer } = distributeCardsWithFirst(roomData.maxPlayers);
+            await update(ref(db, `rooms/${currentRoom}`), {
+                status: 'playing',
+                gameState: {
+                    hands: hands,
+                    currentTurn: firstPlayer,
+                    lastMove: null,
+                    lastMoveBy: null,
+                    passCount: 0,
+                    finishedOrder: []
+                }
+            });
+
+            announce('게임을 시작합니다!');
+        } catch (error) {
+            console.error('게임 시작 실패:', error);
+            alert('게임 시작에 실패했습니다.');
+        }
     }
 
     // ==================== 게임 화면 ====================
     let gameScreenShown = false;  // 게임 화면 표시 여부 (중복 알림 방지)
-    
+
     function showGameScreen() {
         document.getElementById('lobby').style.display = 'none';
         document.getElementById('game-container').style.display = 'block';
@@ -3800,28 +3833,9 @@
             
             announce(`${spectatorName}님이 플레이어로 참가했습니다.`);
             logMessage(`${spectatorName} 플레이어 참가`);
-            
-            // 인원이 다 찼으면 게임 시작
-            const updatedSnapshot = await get(ref(db, `rooms/${currentRoom}/players`));
-            const currentPlayerCount = Object.keys(updatedSnapshot.val() || {}).length;
-            
-            if (currentPlayerCount >= maxPlayers) {
-                // 게임 시작 - 카드 분배 및 선 정하기
-                const { hands, firstPlayer } = distributeCardsWithFirst(maxPlayers);
-                await update(ref(db, `rooms/${currentRoom}`), {
-                    status: 'playing',
-                    gameState: {
-                        hands: hands,
-                        currentTurn: firstPlayer,
-                        lastMove: null,
-                        lastMoveBy: null,
-                        passCount: 0,
-                        finishedOrder: []
-                    }
-                });
-                announce('인원이 모두 찼습니다! 게임을 시작합니다.');
-            }
-            
+
+            // 방장이 게임 시작 버튼을 눌러야 시작됨 (자동 시작 제거)
+
         } catch (error) {
             console.error("승인 실패:", error);
             alert('승인에 실패했습니다.');
@@ -4022,27 +4036,9 @@
             });
             
             announce(`${aiName}이(가) 참가했습니다.`);
-            
-            // 인원 다 찼는지 확인
-            const updatedSnapshot = await get(ref(db, `rooms/${currentRoom}/players`));
-            const updatedCount = Object.keys(updatedSnapshot.val() || {}).length;
-            
-            if (updatedCount >= roomData.maxPlayers) {
-                // 게임 시작
-                const { hands, firstPlayer } = distributeCardsWithFirst(roomData.maxPlayers);
-                await update(ref(db, `rooms/${currentRoom}`), {
-                    status: 'playing',
-                    gameState: {
-                        hands: hands,
-                        currentTurn: firstPlayer,
-                        lastMove: null,
-                        lastMoveBy: null,
-                        passCount: 0,
-                        finishedOrder: []
-                    }
-                });
-            }
-            
+
+            // 방장이 게임 시작 버튼을 눌러야 시작됨 (자동 시작 제거)
+
         } catch (error) {
             console.error("AI 추가 실패:", error);
             alert("AI 추가에 실패했습니다.");
