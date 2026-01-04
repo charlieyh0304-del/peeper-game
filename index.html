@@ -89,13 +89,13 @@
             position: relative;
         }
         .card:focus { outline: 4px solid #ffc107; outline-offset: 2px; }
-        .card.selected { 
+        .card[aria-pressed="true"] { 
             background: #e94560; color: white; 
             transform: translateY(-12px); 
             border: 5px solid #ffff00;
             box-shadow: 0 10px 25px rgba(255, 255, 0, 0.6), 0 0 0 4px #e94560;
         }
-        .card.selected::before {
+        .card[aria-pressed="true"]::before {
             content: "";
             position: absolute;
             bottom: -18px;
@@ -107,7 +107,7 @@
             border-radius: 3px;
             pointer-events: none;
         }
-        .card.selected::after {
+        .card[aria-pressed="true"]::after {
             content: "✓";
             position: absolute;
             top: -14px;
@@ -127,9 +127,9 @@
             pointer-events: none;
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
-        .card.joker.selected { background: #ff9800; color: #000; border-color: #ffff00; }
+        .card.joker[aria-pressed="true"] { background: #ff9800; color: #000; border-color: #ffff00; }
         .card.red-one { border-color: #ff0000; color: #ff0000; background: #2a1a1a; }
-        .card.red-one.selected { background: #ff0000; color: white; border-color: #ffff00; }
+        .card.red-one[aria-pressed="true"] { background: #ff0000; color: white; border-color: #ffff00; }
         
         /* 버튼 */
         button { padding: 12px 20px; font-size: 15px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 8px; margin: 4px; font-weight: bold; }
@@ -225,17 +225,17 @@
                 font-size: 16px;
                 border-width: 2px;
             }
-            .card.selected { 
+            .card[aria-pressed="true"] { 
                 transform: translateY(-10px); 
                 border: 4px solid #ffff00;
                 box-shadow: 0 8px 20px rgba(255, 255, 0, 0.6);
             }
-            .card.selected::before {
+            .card[aria-pressed="true"]::before {
                 font-size: 10px;
                 bottom: -20px;
                 padding: 1px 4px;
             }
-            .card.selected::after {
+            .card[aria-pressed="true"]::after {
                 width: 22px;
                 height: 22px;
                 font-size: 12px;
@@ -295,7 +295,7 @@
         /* 터치 디바이스 전용 */
         @media (hover: none) and (pointer: coarse) {
             .card:hover { transform: none; }
-            .card.selected:hover { transform: translateY(-8px); }
+            .card[aria-pressed="true"]:hover { transform: translateY(-8px); }
             button:hover { background: inherit; }
             .btn-create:hover { background: #e94560; }
             .btn-join:hover { background: #0f3460; }
@@ -510,13 +510,13 @@
             width: 60px;
             height: 80px;
         }
-        body.high-contrast .card.selected {
+        body.high-contrast .card[aria-pressed="true"] {
             background: #ffff00;
             color: #000;
             border-color: #ffff00;
             transform: translateY(-12px);
         }
-        body.high-contrast .card.selected::after {
+        body.high-contrast .card[aria-pressed="true"]::after {
             content: "✓";
             position: absolute;
             top: -8px;
@@ -540,7 +540,7 @@
             border-color: #00ffff;
             color: #00ffff;
         }
-        body.high-contrast .card.joker.selected {
+        body.high-contrast .card.joker[aria-pressed="true"] {
             background: #00ffff;
             color: #000;
         }
@@ -548,7 +548,7 @@
             border-color: #ff0000;
             color: #ff0000;
         }
-        body.high-contrast .card.red-one.selected {
+        body.high-contrast .card.red-one[aria-pressed="true"] {
             background: #ff0000;
             color: #fff;
         }
@@ -2115,7 +2115,7 @@
         }
     });
 
-    async function handleRoomUpdate(data) {
+    function handleRoomUpdate(data) {
         players = data.players || {};
         spectators = data.spectators || {};
         joinRequests = data.joinRequests || {};
@@ -2333,25 +2333,19 @@
         if (isMyTurn && gs.lastMove?.isMine && gs.lastMove?.mineBy === myPlayerId) {
             // 로컬 변수 먼저 업데이트
             lastMove = null;
-
-            // Firebase 업데이트 (await로 완료 대기)
-            await update(ref(db, `rooms/${currentRoom}/gameState`), {
+            
+            // Firebase 업데이트
+            update(ref(db, `rooms/${currentRoom}/gameState`), {
                 lastMove: null,
                 lastMoveBy: null,
                 passCount: 0
             });
             logMessage('마인 성공! 선을 잡았습니다.');
             announce('마인 성공! 카드를 내세요.');
-
-            // UI 갱신 및 버튼 활성화
+            
+            // UI 갱신
             updateAllInfo();
             renderHand();
-
-            // 버튼 명시적 활성화
-            const playBtn = document.getElementById('btn-play');
-            const passBtn = document.getElementById('btn-pass');
-            if (playBtn) playBtn.disabled = false;
-            if (passBtn) passBtn.disabled = false;
         }
         
         // 완주자 목록
@@ -2535,11 +2529,9 @@
 
             const cardName = isJoker ? 'X' : (isRed ? '빨간 1' : actualValue);
             const isSelected = selectedIndices.includes(idx);
-            // aria-label만 사용 (aria-pressed 제거하여 "토글 버튼" 중복 방지)
+            // aria-label: 모바일 스크린리더가 자동으로 읽음
             card.setAttribute('aria-label', `${cardName}${isSelected ? ', 선택됨' : ''}`);
-            if (isSelected) {
-                card.classList.add('selected');
-            }
+            card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
 
             // 시각적 텍스트는 aria-hidden으로 숨김 (aria-label로만 읽히도록)
             const visualText = document.createElement('span');
@@ -2631,13 +2623,13 @@
         
         if (selectedIndices.includes(idx)) {
             selectedIndices = selectedIndices.filter(i => i !== idx);
-            card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
             card.setAttribute('aria-label', `${cardName}`);
             // 선택 해제 알림
             announce(`${cardName}, 해제`);
         } else {
             selectedIndices.push(idx);
-            card.classList.add('selected');
+            card.setAttribute('aria-pressed', 'true');
             card.setAttribute('aria-label', `${cardName}, 선택됨`);
             // 선택 알림
             announce(`${cardName}, 선택됨`);
@@ -2808,7 +2800,7 @@
         selectedIndices.forEach(idx => {
             const card = document.getElementById(`card-${idx}`);
             if (card) {
-                card.classList.remove('selected');
+                card.setAttribute('aria-pressed', 'false');
                 const num = myHand[idx];
                 const actualValue = getCardValue(num);
                 const cardName = actualValue === 16 ? 'X' : (isRedOne(num) ? '빨간 1' : actualValue);
