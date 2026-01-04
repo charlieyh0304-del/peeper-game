@@ -127,9 +127,9 @@
             pointer-events: none;
         }
         .card.joker { border-color: #ffc107; color: #ffc107; }
-        .card.joker[aria-pressed="true"] { background: #ff9800; color: #000; border-color: #ffff00; }
+        .card.joker.selected { background: #ff9800; color: #000; border-color: #ffff00; }
         .card.red-one { border-color: #ff0000; color: #ff0000; background: #2a1a1a; }
-        .card.red-one[aria-pressed="true"] { background: #ff0000; color: white; border-color: #ffff00; }
+        .card.red-one.selected { background: #ff0000; color: white; border-color: #ffff00; }
         
         /* 버튼 */
         button { padding: 12px 20px; font-size: 15px; cursor: pointer; background: #e94560; color: white; border: none; border-radius: 8px; margin: 4px; font-weight: bold; }
@@ -540,7 +540,7 @@
             border-color: #00ffff;
             color: #00ffff;
         }
-        body.high-contrast .card.joker[aria-pressed="true"] {
+        body.high-contrast .card.joker.selected {
             background: #00ffff;
             color: #000;
         }
@@ -548,7 +548,7 @@
             border-color: #ff0000;
             color: #ff0000;
         }
-        body.high-contrast .card.red-one[aria-pressed="true"] {
+        body.high-contrast .card.red-one.selected {
             background: #ff0000;
             color: #fff;
         }
@@ -2808,7 +2808,7 @@
         selectedIndices.forEach(idx => {
             const card = document.getElementById(`card-${idx}`);
             if (card) {
-                card.setAttribute('aria-pressed', 'false');
+                card.classList.remove('selected');
                 const num = myHand[idx];
                 const actualValue = getCardValue(num);
                 const cardName = actualValue === 16 ? 'X' : (isRedOne(num) ? '빨간 1' : actualValue);
