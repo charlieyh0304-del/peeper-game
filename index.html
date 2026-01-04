@@ -2232,6 +2232,7 @@
 
     // ==================== 게임 시작 (방장만) ====================
     async function startGame() {
+        alert('게임 시작 버튼이 눌렸습니다!');
         console.log('startGame called, myPlayerId:', myPlayerId, 'currentRoom:', currentRoom);
 
         if (myPlayerId !== 'player1') {
@@ -2641,17 +2642,18 @@
             }
         }
         
-        // 리턴 버튼 표시 (마인 페어 바닥에 같은 숫자 싱글이 있을 때)
+        // 리턴 버튼 표시 (마인 페어 바닥에 같은 숫자 싱글이 있을 때, 단 마인한 본인 제외)
         const returnBtn = document.getElementById('btn-return');
         if (returnBtn) {
             const wasReturnVisible = returnBtn.style.display !== 'none';
             let canReturn = false;
-            if (lastMove && lastMove.isMine && lastMove.type === 'PAIR') {
+            // 마인한 본인은 리턴 불가
+            if (lastMove && lastMove.isMine && lastMove.type === 'PAIR' && lastMove.mineBy !== myPlayerId) {
                 const targetVal = lastMove.val;
                 canReturn = myHand.some(card => getCardValue(card) === targetVal);
             }
             returnBtn.style.display = canReturn ? 'inline-block' : 'none';
-            
+
             // 새로 리턴 가능해지면 모달 띄우기
             if (canReturn && !wasReturnVisible) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
