@@ -1000,9 +1000,9 @@
     let pendingMineModalTimer = null;  // 마인 모달 표시 타이머
     let pendingReturnModalTimer = null;  // 리턴 모달 표시 타이머
     const RETURN_WAIT_TIME = 3;   // 리턴 대기 시간 (초) - 마인 후 리턴 기회
-    const AI_TURN_DELAY = 1000;    // AI 턴 기본 딜레이 (3초)
-    const AI_TURN_RANDOM = 500;   // AI 턴 랜덤 추가 딜레이 (0~2초) → 총 3~5초
-    const AI_MINE_RETURN_DELAY = 500;  // 마인/리턴 상황에서 AI 반응 딜레이 (더 빠름)
+    const AI_TURN_DELAY = 500;     // AI 턴 기본 딜레이 (0.5초)
+    const AI_TURN_RANDOM = 300;    // AI 턴 랜덤 추가 딜레이 (0~0.3초)
+    const AI_MINE_RETURN_DELAY = 300;  // 마인/리턴 상황에서 AI 반응 딜레이 (더 빠름)
 
     // 전역 함수 노출
     window.createRoom = createRoom;
