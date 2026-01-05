@@ -3123,11 +3123,17 @@
 
     // ==================== 카드 내기 ====================
     async function playMove() {
+        // 마인/리턴 모달이 열려있으면 무시
+        const mineReturnModal = document.getElementById('mine-return-modal');
+        if (mineReturnModal && mineReturnModal.style.display === 'flex') {
+            return;
+        }
+
         if (isProcessing) {
             console.log('playMove: isProcessing is true');
             return;
         }
-        
+
         isProcessing = true;  // 즉시 설정하여 중복 호출 방지
         
         // 버튼도 비활성화하여 중복 클릭 방지
