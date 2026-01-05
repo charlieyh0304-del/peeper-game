@@ -3438,6 +3438,14 @@
             return;
         }
 
+        // 방금 마인/리턴 실행했으면 모달 표시하지 않음
+        if (type === 'mine' && justExecutedMine) {
+            return;
+        }
+        if (type === 'return' && justExecutedReturn) {
+            return;
+        }
+
         const title = document.getElementById('mine-return-title');
         const message = document.getElementById('mine-return-message');
         const mineBtn = document.getElementById('btn-modal-mine');
