@@ -2642,8 +2642,8 @@
                 // 바닥 카드 정보 먼저 알림 후 마인 모달 표시
                 announce(`바닥: ${displayVal} 싱글`);
                 pendingMineModalTimer = setTimeout(() => {
-                    pendingMineModalTimer = null;
                     showActionModal('mine', displayVal);
+                    pendingMineModalTimer = null;  // 모달 열기 후에 null로 설정
                 }, 300);
             }
         }
@@ -2666,8 +2666,8 @@
                 // 바닥 마인 정보 먼저 알림 후 리턴 모달 표시
                 announce(`바닥: ${displayVal} 마인`);
                 pendingReturnModalTimer = setTimeout(() => {
-                    pendingReturnModalTimer = null;
                     showActionModal('return', displayVal);
+                    pendingReturnModalTimer = null;  // 모달 열기 후에 null로 설정
                 }, 300);
             }
         }
@@ -3498,17 +3498,27 @@
         const modal = document.getElementById('mine-return-modal');
         modal.style.display = 'none';
         currentActionModalVal = null;
-        
+
+        // 대기 중인 타이머 취소
+        if (pendingMineModalTimer) {
+            clearTimeout(pendingMineModalTimer);
+            pendingMineModalTimer = null;
+        }
+        if (pendingReturnModalTimer) {
+            clearTimeout(pendingReturnModalTimer);
+            pendingReturnModalTimer = null;
+        }
+
         if (actionModalFocusTrapHandler) {
             document.removeEventListener('keydown', actionModalFocusTrapHandler);
             actionModalFocusTrapHandler = null;
         }
-        
+
         // 포커스를 카드 내기 버튼으로 이동
         setTimeout(() => {
             document.getElementById('btn-play')?.focus();
         }, 50);
-        
+
         announce('취소되었습니다.');
     }
     window.closeActionModal = closeActionModal;
@@ -3517,12 +3527,18 @@
         const modal = document.getElementById('mine-return-modal');
         modal.style.display = 'none';
         currentActionModalVal = null;
-        
+
+        // 대기 중인 타이머 취소
+        if (pendingMineModalTimer) {
+            clearTimeout(pendingMineModalTimer);
+            pendingMineModalTimer = null;
+        }
+
         if (actionModalFocusTrapHandler) {
             document.removeEventListener('keydown', actionModalFocusTrapHandler);
             actionModalFocusTrapHandler = null;
         }
-        
+
         await autoMine();
         
         // 포커스를 카드 내기 버튼으로 이동
@@ -3536,12 +3552,18 @@
         const modal = document.getElementById('mine-return-modal');
         modal.style.display = 'none';
         currentActionModalVal = null;
-        
+
+        // 대기 중인 타이머 취소
+        if (pendingReturnModalTimer) {
+            clearTimeout(pendingReturnModalTimer);
+            pendingReturnModalTimer = null;
+        }
+
         if (actionModalFocusTrapHandler) {
             document.removeEventListener('keydown', actionModalFocusTrapHandler);
             actionModalFocusTrapHandler = null;
         }
-        
+
         await doReturn();
         
         // 포커스를 카드 내기 버튼으로 이동
