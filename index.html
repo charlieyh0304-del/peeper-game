@@ -2612,9 +2612,16 @@
             handDiv.appendChild(card);
         });
         
-        // 포커스 복원 완전히 제거 - 알림 끊김 방지
-        // 사용자가 직접 Tab/방향키로 이동해야 함
-        
+        // 포커스가 카드 영역에 있었으면 복원
+        if (savedFocusIndex >= 0 && myHand.length > 0) {
+            const newFocusIndex = Math.min(savedFocusIndex, myHand.length - 1);
+            const cardToFocus = document.getElementById(`card-${newFocusIndex}`);
+            if (cardToFocus) {
+                // 약간의 지연 후 포커스 복원 (DOM 업데이트 후)
+                setTimeout(() => cardToFocus.focus(), 10);
+            }
+        }
+
         document.getElementById('hand-count').textContent = myHand.length;
         
         // 3장 남으면 3카드 버튼 표시
