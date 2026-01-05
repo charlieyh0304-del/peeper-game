@@ -995,9 +995,12 @@
     
     // 마인/리턴 관련 변수
     let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
+    let justExecutedMine = false;  // 마인 실행 직후 플래그 (모달 중복 표시 방지)
+    let justExecutedReturn = false;  // 리턴 실행 직후 플래그
     const RETURN_WAIT_TIME = 3;   // 리턴 대기 시간 (초) - 마인 후 리턴 기회
     const AI_TURN_DELAY = 1000;    // AI 턴 기본 딜레이 (3초)
     const AI_TURN_RANDOM = 500;   // AI 턴 랜덤 추가 딜레이 (0~2초) → 총 3~5초
+    const AI_MINE_RETURN_DELAY = 500;  // 마인/리턴 상황에서 AI 반응 딜레이 (더 빠름)
 
     // 전역 함수 노출
     window.createRoom = createRoom;
@@ -2631,8 +2634,8 @@
             }
             mineBtn.style.display = canMine ? 'inline-block' : 'none';
             
-            // 새로 마인 가능해지면 모달 띄우기
-            if (canMine && !wasVisible) {
+            // 새로 마인 가능해지면 모달 띄우기 (단, 방금 마인 실행한 직후엔 제외)
+            if (canMine && !wasVisible && !justExecutedMine) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
                 // 바닥 카드 정보 먼저 알림 후 마인 모달 표시
                 announce(`바닥: ${displayVal} 싱글`);
@@ -2654,8 +2657,8 @@
             }
             returnBtn.style.display = canReturn ? 'inline-block' : 'none';
 
-            // 새로 리턴 가능해지면 모달 띄우기
-            if (canReturn && !wasReturnVisible) {
+            // 새로 리턴 가능해지면 모달 띄우기 (단, 방금 리턴 실행한 직후엔 제외)
+            if (canReturn && !wasReturnVisible && !justExecutedReturn) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
                 // 바닥 마인 정보 먼저 알림 후 리턴 모달 표시
                 announce(`바닥: ${displayVal} 마인`);
@@ -3362,15 +3365,19 @@
         const move = getMoveInfo(cards);
         
         if (move && move.type === 'PAIR' && move.val === targetVal) {
+            // 마인 실행 직후 플래그 설정 (모달 중복 표시 방지)
+            justExecutedMine = true;
+            setTimeout(() => { justExecutedMine = false; }, 2000);
+
             // 마인 처리 (내 차례가 아닐 수 있으므로 직접 업데이트)
             move.isMine = true;
             move.mineBy = myPlayerId;
-            
+
             const newHand = myHand.filter((_, i) => !mineIndices.includes(i));
-            
+
             // 다음 턴 계산 (마인한 사람 다음부터)
             const nextTurn = getNextTurn(myPlayerId);
-            
+
             const updates = {
                 [`gameState/hands/${myPlayerId}`]: newHand,
                 'gameState/lastMove': move,
@@ -3378,7 +3385,7 @@
                 'gameState/passCount': 0,
                 'gameState/currentTurn': nextTurn  // 다음 사람부터 리턴 기회
             };
-            
+
             // 완주 체크
             if (newHand.length === 0) {
                 updates[`players/${myPlayerId}/finished`] = true;
@@ -3386,9 +3393,9 @@
                 updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
                 updates['status'] = 'finished';
             }
-            
+
             await update(ref(db, `rooms/${currentRoom}`), updates);
-            
+
             const displayVal = targetVal === 16 ? 'X' : targetVal;
             announce(`${displayVal}마인!`);
             logMessage(`나: ${displayVal}마인`);
@@ -3421,6 +3428,13 @@
             mineBtn.style.display = 'none';
             returnBtn.style.display = 'block';
             announce(`${val} 리턴 가능! 리턴 또는 취소를 선택하세요.`);
+
+            // mineState 설정 (doReturn에서 필요) - displayVal이 'X'면 16으로 변환
+            const numericVal = val === 'X' ? 16 : val;
+            if (mineState?.timer) {
+                clearInterval(mineState.timer);
+            }
+            mineState = { val: numericVal, timer: null };
         }
         
         modal.style.display = 'flex';
@@ -3579,13 +3593,17 @@
         // 패널 먼저 숨김
         const panel = document.getElementById('return-panel');
         if (panel) panel.style.display = 'none';
-        
+
         if (!mineState) {
             return;
         }
-        
+
+        // 리턴 실행 직후 플래그 설정 (모달 중복 표시 방지)
+        justExecutedReturn = true;
+        setTimeout(() => { justExecutedReturn = false; }, 2000);
+
         const returnVal = mineState.val;
-        
+
         // 타이머 정리
         if (mineState.timer) {
             clearInterval(mineState.timer);
@@ -4145,26 +4163,26 @@
             const mineVal = gs.lastMove.val;
             const aiHand = gs.hands[currentPlayer];
             
-            // 마인 한 AI에게 턴이 돌아왔으면: 리턴 대기 후 바닥 비우고 진행
+            // 마인 한 AI에게 턴이 돌아왔으면: 마인 성공 처리 후 바닥 비우고 진행
             if (mineBy === currentPlayer) {
                 aiThinking = true;
-                // 리턴 대기 시간 후 마인 성공
+                // 마인 성공 처리 (빠른 반응)
                 setTimeout(async () => {
                     await update(ref(db, `rooms/${currentRoom}/gameState`), {
                         lastMove: null,
                         lastMoveBy: null
                     });
                     logMessage(`${playerInfo.name}: 마인 성공`);
-                    
-                    // 마인 성공 후 다음 카드 내기
+
+                    // 마인 성공 후 다음 카드 내기 (빠른 반응)
                     setTimeout(async () => {
                         aiThinking = false;
                         const snapshot = await get(ref(db, `rooms/${currentRoom}`));
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, AI_TURN_DELAY);
-                }, 1000);
+                    }, AI_MINE_RETURN_DELAY);
+                }, AI_MINE_RETURN_DELAY);
                 return;
             }
             
@@ -4172,8 +4190,8 @@
             const hasReturnCard = aiHand?.some(card => getCardValue(card) === mineVal);
             if (hasReturnCard) {
                 aiThinking = true;
-                // 5~10초 대기 후 리턴 (사용자에게 리턴 기회 주기)
-                const delay = 2000;
+                // AI 리턴 대기 (빠른 반응)
+                const delay = AI_MINE_RETURN_DELAY;
                 setTimeout(async () => {
                     const returnCardIndex = aiHand.findIndex(card => getCardValue(card) === mineVal);
                     const newHand = aiHand.filter((_, i) => i !== returnCardIndex);
@@ -4188,8 +4206,8 @@
                     });
                     
                     logMessage(`${playerInfo.name}: ${mineVal}리턴`);
-                    
-                    // 리턴 후 다음 카드 내기 (5초 대기)
+
+                    // 리턴 후 다음 카드 내기 (빠른 반응)
                     setTimeout(async () => {
                         aiThinking = false;
                         // Firebase에서 최신 데이터 가져와서 다음 카드 내기
@@ -4197,23 +4215,23 @@
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, AI_TURN_DELAY);
+                    }, AI_MINE_RETURN_DELAY);
                 }, delay);
                 return;
             } else {
-                // 리턴 못하면 패스 (5~10초 대기 후 - 사용자 리턴 기회)
+                // 리턴 못하면 패스 (빠른 반응)
                 aiThinking = true;
                 setTimeout(async () => {
                     await aiPass(currentPlayer, data);
-                    // 딜레이 후 다음 AI 턴 체크
+                    // 딜레이 후 다음 AI 턴 체크 (빠른 반응)
                     setTimeout(async () => {
                         aiThinking = false;
                         const snapshot = await get(ref(db, `rooms/${currentRoom}`));
                         if (snapshot.exists()) {
                             processAITurn(snapshot.val());
                         }
-                    }, AI_TURN_DELAY);
-                }, 2000);
+                    }, AI_MINE_RETURN_DELAY);
+                }, AI_MINE_RETURN_DELAY);
                 return;
             }
         }
