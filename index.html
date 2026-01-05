@@ -997,6 +997,8 @@
     let mineState = null;  // { val: 8, mineBy: 'player2', timer: null }
     let justExecutedMine = false;  // 마인 실행 직후 플래그 (모달 중복 표시 방지)
     let justExecutedReturn = false;  // 리턴 실행 직후 플래그
+    let pendingMineModalTimer = null;  // 마인 모달 표시 타이머
+    let pendingReturnModalTimer = null;  // 리턴 모달 표시 타이머
     const RETURN_WAIT_TIME = 3;   // 리턴 대기 시간 (초) - 마인 후 리턴 기회
     const AI_TURN_DELAY = 1000;    // AI 턴 기본 딜레이 (3초)
     const AI_TURN_RANDOM = 500;   // AI 턴 랜덤 추가 딜레이 (0~2초) → 총 3~5초
@@ -2635,11 +2637,12 @@
             mineBtn.style.display = canMine ? 'inline-block' : 'none';
             
             // 새로 마인 가능해지면 모달 띄우기 (단, 방금 마인 실행한 직후엔 제외)
-            if (canMine && !wasVisible && !justExecutedMine) {
+            if (canMine && !wasVisible && !justExecutedMine && !pendingMineModalTimer) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
                 // 바닥 카드 정보 먼저 알림 후 마인 모달 표시
                 announce(`바닥: ${displayVal} 싱글`);
-                setTimeout(() => {
+                pendingMineModalTimer = setTimeout(() => {
+                    pendingMineModalTimer = null;
                     showActionModal('mine', displayVal);
                 }, 300);
             }
@@ -2658,11 +2661,12 @@
             returnBtn.style.display = canReturn ? 'inline-block' : 'none';
 
             // 새로 리턴 가능해지면 모달 띄우기 (단, 방금 리턴 실행한 직후엔 제외)
-            if (canReturn && !wasReturnVisible && !justExecutedReturn) {
+            if (canReturn && !wasReturnVisible && !justExecutedReturn && !pendingReturnModalTimer) {
                 const displayVal = lastMove.val === 16 ? 'X' : lastMove.val;
                 // 바닥 마인 정보 먼저 알림 후 리턴 모달 표시
                 announce(`바닥: ${displayVal} 마인`);
-                setTimeout(() => {
+                pendingReturnModalTimer = setTimeout(() => {
+                    pendingReturnModalTimer = null;
                     showActionModal('return', displayVal);
                 }, 300);
             }
@@ -3369,6 +3373,12 @@
             justExecutedMine = true;
             setTimeout(() => { justExecutedMine = false; }, 2000);
 
+            // 대기 중인 마인 모달 타이머 취소
+            if (pendingMineModalTimer) {
+                clearTimeout(pendingMineModalTimer);
+                pendingMineModalTimer = null;
+            }
+
             // 마인 처리 (내 차례가 아닐 수 있으므로 직접 업데이트)
             move.isMine = true;
             move.mineBy = myPlayerId;
@@ -3607,6 +3617,12 @@
         // 리턴 실행 직후 플래그 설정 (모달 중복 표시 방지)
         justExecutedReturn = true;
         setTimeout(() => { justExecutedReturn = false; }, 2000);
+
+        // 대기 중인 리턴 모달 타이머 취소
+        if (pendingReturnModalTimer) {
+            clearTimeout(pendingReturnModalTimer);
+            pendingReturnModalTimer = null;
+        }
 
         const returnVal = mineState.val;
 
