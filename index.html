@@ -2612,8 +2612,8 @@
             handDiv.appendChild(card);
         });
         
-        // 포커스가 카드 영역에 있었으면 복원
-        if (savedFocusIndex >= 0 && myHand.length > 0) {
+        // 포커스가 카드 영역에 있었으면 복원 (단, skipFocusRestore가 true면 건너뜀)
+        if (savedFocusIndex >= 0 && myHand.length > 0 && !skipFocusRestore) {
             const newFocusIndex = Math.min(savedFocusIndex, myHand.length - 1);
             const cardToFocus = document.getElementById(`card-${newFocusIndex}`);
             if (cardToFocus) {
@@ -2653,6 +2653,25 @@
                     pendingMineModalTimer = null;  // 모달 열기 후에 null로 설정
                 }, 300);
             }
+
+            // 마인 불가능해지면 열려있는 마인 모달도 닫기
+            if (!canMine) {
+                const modal = document.getElementById('mine-return-modal');
+                const modalMineBtn = document.getElementById('btn-modal-mine');
+                if (modal.style.display === 'flex' && modalMineBtn.style.display !== 'none') {
+                    // 모달 직접 닫기 (취소 알림 방지)
+                    modal.style.display = 'none';
+                    currentActionModalVal = null;
+                    const gameContainer = document.getElementById('game-container');
+                    const lobby = document.getElementById('lobby');
+                    if (gameContainer) gameContainer.removeAttribute('inert');
+                    if (lobby) lobby.removeAttribute('inert');
+                    if (actionModalFocusTrapHandler) {
+                        document.removeEventListener('keydown', actionModalFocusTrapHandler);
+                        actionModalFocusTrapHandler = null;
+                    }
+                }
+            }
         }
         
         // 리턴 버튼 표시 (마인 페어 바닥에 같은 숫자 싱글이 있을 때, 단 마인한 본인 제외)
@@ -2676,6 +2695,29 @@
                     showActionModal('return', displayVal);
                     pendingReturnModalTimer = null;  // 모달 열기 후에 null로 설정
                 }, 300);
+            }
+
+            // 리턴 불가능해지면 열려있는 리턴 모달 및 패널도 닫기
+            if (!canReturn) {
+                const modal = document.getElementById('mine-return-modal');
+                const modalReturnBtn = document.getElementById('btn-modal-return');
+                if (modal.style.display === 'flex' && modalReturnBtn.style.display !== 'none') {
+                    // 모달 직접 닫기 (취소 알림 방지)
+                    modal.style.display = 'none';
+                    currentActionModalVal = null;
+                    const gameContainer = document.getElementById('game-container');
+                    const lobby = document.getElementById('lobby');
+                    if (gameContainer) gameContainer.removeAttribute('inert');
+                    if (lobby) lobby.removeAttribute('inert');
+                    if (actionModalFocusTrapHandler) {
+                        document.removeEventListener('keydown', actionModalFocusTrapHandler);
+                        actionModalFocusTrapHandler = null;
+                    }
+                }
+                // return-panel도 숨기기
+                const returnPanel = document.getElementById('return-panel');
+                if (returnPanel) returnPanel.style.display = 'none';
+                hideReturnPanel();
             }
         }
     }
@@ -3248,11 +3290,14 @@
             updates['gameState/currentTurn'] = keepTurn ? myPlayerId : getNextTurn(myPlayerId);
         }
         
+        // 카드 낸 후 포커스 복원 방지
+        skipFocusRestore = true;
+
         await update(ref(db, `rooms/${currentRoom}`), updates);
-        
+
         // 사운드 재생
         playSound('play');
-        
+
         // 3장 이하 남으면 경고음
         if (newHand.length <= 3 && newHand.length > 0) {
             setTimeout(() => playSound('warning'), 300);
@@ -3261,6 +3306,7 @@
 
         // 카드 낸 후 포커스를 카드 내기 버튼으로 이동 (알림 끊김 방지를 위해 지연)
         setTimeout(() => {
+            skipFocusRestore = false;
             const playBtn = document.getElementById('btn-play');
             if (playBtn && !playBtn.disabled) {
                 playBtn.focus();
@@ -3475,41 +3521,50 @@
         }
         
         modal.style.display = 'flex';
-        
-        // 포커스 트랩 설정
+
+        // 모달 외부 콘텐츠 비활성화 (스크린리더 탐색 방지)
+        const gameContainer = document.getElementById('game-container');
+        const lobby = document.getElementById('lobby');
+        if (gameContainer) gameContainer.setAttribute('inert', '');
+        if (lobby) lobby.setAttribute('inert', '');
+
+        // 포커스 트랩 설정 - 표시된 버튼만 선택
         const focusableButtons = modal.querySelectorAll('button');
         const visibleButtons = Array.from(focusableButtons).filter(btn => btn.style.display !== 'none');
-        
+
         // 첫 번째 버튼에 포커스
         setTimeout(() => {
             visibleButtons[0]?.focus();
         }, 50);
-        
+
         // 포커스 트랩 핸들러
         if (actionModalFocusTrapHandler) {
             document.removeEventListener('keydown', actionModalFocusTrapHandler);
         }
-        
+
         actionModalFocusTrapHandler = function(e) {
             if (modal.style.display !== 'flex') return;
-            
+
             if (e.key === 'Escape') {
                 e.preventDefault();
                 closeActionModal();
                 return;
             }
-            
+
+            // Tab 키: 모달 내부에서만 이동
             if (e.key === 'Tab') {
-                const firstBtn = visibleButtons[0];
-                const lastBtn = visibleButtons[visibleButtons.length - 1];
-                
-                if (e.shiftKey && document.activeElement === firstBtn) {
-                    e.preventDefault();
-                    lastBtn.focus();
-                } else if (!e.shiftKey && document.activeElement === lastBtn) {
-                    e.preventDefault();
-                    firstBtn.focus();
+                e.preventDefault();
+                const currentIndex = visibleButtons.indexOf(document.activeElement);
+                let nextIndex;
+
+                if (e.shiftKey) {
+                    // Shift+Tab: 이전 버튼
+                    nextIndex = currentIndex <= 0 ? visibleButtons.length - 1 : currentIndex - 1;
+                } else {
+                    // Tab: 다음 버튼
+                    nextIndex = currentIndex >= visibleButtons.length - 1 ? 0 : currentIndex + 1;
                 }
+                visibleButtons[nextIndex]?.focus();
             }
         };
         document.addEventListener('keydown', actionModalFocusTrapHandler);
@@ -3519,6 +3574,12 @@
         const modal = document.getElementById('mine-return-modal');
         modal.style.display = 'none';
         currentActionModalVal = null;
+
+        // 모달 외부 콘텐츠 다시 활성화
+        const gameContainer = document.getElementById('game-container');
+        const lobby = document.getElementById('lobby');
+        if (gameContainer) gameContainer.removeAttribute('inert');
+        if (lobby) lobby.removeAttribute('inert');
 
         // 대기 중인 타이머 취소
         if (pendingMineModalTimer) {
@@ -3549,6 +3610,12 @@
         modal.style.display = 'none';
         currentActionModalVal = null;
 
+        // 모달 외부 콘텐츠 다시 활성화
+        const gameContainer = document.getElementById('game-container');
+        const lobby = document.getElementById('lobby');
+        if (gameContainer) gameContainer.removeAttribute('inert');
+        if (lobby) lobby.removeAttribute('inert');
+
         // 대기 중인 타이머 취소
         if (pendingMineModalTimer) {
             clearTimeout(pendingMineModalTimer);
@@ -3561,7 +3628,7 @@
         }
 
         await autoMine();
-        
+
         // 포커스를 카드 내기 버튼으로 이동
         setTimeout(() => {
             document.getElementById('btn-play')?.focus();
@@ -3573,6 +3640,12 @@
         const modal = document.getElementById('mine-return-modal');
         modal.style.display = 'none';
         currentActionModalVal = null;
+
+        // 모달 외부 콘텐츠 다시 활성화
+        const gameContainer = document.getElementById('game-container');
+        const lobby = document.getElementById('lobby');
+        if (gameContainer) gameContainer.removeAttribute('inert');
+        if (lobby) lobby.removeAttribute('inert');
 
         // 대기 중인 타이머 취소
         if (pendingReturnModalTimer) {
@@ -3586,7 +3659,7 @@
         }
 
         await doReturn();
-        
+
         // 포커스를 카드 내기 버튼으로 이동
         setTimeout(() => {
             document.getElementById('btn-play')?.focus();
