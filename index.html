@@ -3409,11 +3409,17 @@
     
     function showActionModal(type, val) {
         const modal = document.getElementById('mine-return-modal');
+
+        // 이미 모달이 열려있으면 중복 표시하지 않음
+        if (modal.style.display === 'flex') {
+            return;
+        }
+
         const title = document.getElementById('mine-return-title');
         const message = document.getElementById('mine-return-message');
         const mineBtn = document.getElementById('btn-modal-mine');
         const returnBtn = document.getElementById('btn-modal-return');
-        
+
         currentActionModalVal = val;
         
         if (type === 'mine') {
