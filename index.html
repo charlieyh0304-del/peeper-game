@@ -2670,6 +2670,11 @@
                         document.removeEventListener('keydown', actionModalFocusTrapHandler);
                         actionModalFocusTrapHandler = null;
                     }
+                    // 포커스를 카드 목록 첫 번째 카드로 이동
+                    setTimeout(() => {
+                        const firstCard = document.getElementById('card-0');
+                        if (firstCard) firstCard.focus();
+                    }, 50);
                 }
             }
         }
@@ -2713,6 +2718,11 @@
                         document.removeEventListener('keydown', actionModalFocusTrapHandler);
                         actionModalFocusTrapHandler = null;
                     }
+                    // 포커스를 카드 목록 첫 번째 카드로 이동
+                    setTimeout(() => {
+                        const firstCard = document.getElementById('card-0');
+                        if (firstCard) firstCard.focus();
+                    }, 50);
                 }
                 // return-panel도 숨기기
                 const returnPanel = document.getElementById('return-panel');
@@ -3268,28 +3278,31 @@
     async function submitMove(move, keepTurn) {
         const newHand = myHand.filter((_, i) => !selectedIndices.includes(i));
         selectedIndices = [];
-        
+
         const updates = {
             [`gameState/hands/${myPlayerId}`]: newHand,
             'gameState/lastMove': move,
             'gameState/lastMoveBy': myPlayerId,
             'gameState/passCount': 0  // 카드 내면 패스 카운트 리셋
         };
-        
+
+        let nextTurnPlayer = null;
+
         // 완주 체크 - 누군가 패를 다 내면 바로 게임 종료
         if (newHand.length === 0) {
             const currentFinished = finishedPlayers.length;
             const myRank = currentFinished + 1;
-            
+
             updates[`players/${myPlayerId}/finished`] = true;
             updates[`players/${myPlayerId}/rank`] = myRank;
             updates['gameState/finishedOrder'] = [...finishedPlayers, myPlayerId];
             updates['status'] = 'finished';  // 바로 게임 종료
         } else {
             // 다음 턴
-            updates['gameState/currentTurn'] = keepTurn ? myPlayerId : getNextTurn(myPlayerId);
+            nextTurnPlayer = keepTurn ? myPlayerId : getNextTurn(myPlayerId);
+            updates['gameState/currentTurn'] = nextTurnPlayer;
         }
-        
+
         // 카드 낸 후 포커스 복원 방지
         skipFocusRestore = true;
 
@@ -3304,12 +3317,30 @@
             announce(`주의! 카드가 ${newHand.length}장 남았습니다!`);
         }
 
-        // 카드 낸 후 포커스를 카드 내기 버튼으로 이동 (알림 끊김 방지를 위해 지연)
+        // 다음 턴이 AI면 딜레이 후 턴 처리 (게임 종료가 아니고 턴을 넘긴 경우)
+        if (nextTurnPlayer && nextTurnPlayer !== myPlayerId && players[nextTurnPlayer]?.isAI) {
+            setTimeout(async () => {
+                aiThinking = false;
+                const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                if (snapshot.exists()) {
+                    processAITurn(snapshot.val());
+                }
+            }, AI_TURN_DELAY);
+        }
+
+        // 카드 낸 후 포커스를 카드 목록의 첫 번째 카드로 이동 (알림 끊김 방지를 위해 지연)
         setTimeout(() => {
             skipFocusRestore = false;
-            const playBtn = document.getElementById('btn-play');
-            if (playBtn && !playBtn.disabled) {
-                playBtn.focus();
+            // 카드 목록의 첫 번째 카드로 포커스 이동
+            const firstCard = document.getElementById('card-0');
+            if (firstCard) {
+                firstCard.focus();
+            } else {
+                // 카드가 없으면 카드 내기 버튼으로
+                const playBtn = document.getElementById('btn-play');
+                if (playBtn && !playBtn.disabled) {
+                    playBtn.focus();
+                }
             }
         }, 500);
     }
@@ -3341,6 +3372,17 @@
                     passedBy: myPlayerId
                 });
                 clearSelection();
+
+                // 다음 턴이 AI면 딜레이 후 턴 처리
+                if (data.players[nextTurn]?.isAI) {
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, AI_TURN_DELAY);
+                }
                 return;
             }
             
@@ -3353,14 +3395,26 @@
             
             // 모두 패스했으면 (활성 플레이어 - 1명 모두 패스) → 선을 잡음
             if (currentPassCount >= activePlayers - 1 && gs.lastMoveBy) {
+                const newTurnPlayer = gs.lastMoveBy;
                 await update(ref(db, `rooms/${currentRoom}/gameState`), {
-                    currentTurn: gs.lastMoveBy,
+                    currentTurn: newTurnPlayer,
                     lastMove: null,
                     lastMoveBy: null,
                     passCount: 0,
                     passedBy: myPlayerId
                 });
-                logMessage(`${data.players[gs.lastMoveBy]?.name || gs.lastMoveBy}: 선을 잡음`);
+                logMessage(`${data.players[newTurnPlayer]?.name || newTurnPlayer}: 선을 잡음`);
+
+                // 선을 잡은 플레이어가 AI면 딜레이 후 턴 처리
+                if (data.players[newTurnPlayer]?.isAI) {
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, AI_TURN_DELAY);
+                }
             } else {
                 // 일반 패스
                 await update(ref(db, `rooms/${currentRoom}/gameState`), {
@@ -3368,8 +3422,19 @@
                     passCount: currentPassCount,
                     passedBy: myPlayerId
                 });
+
+                // 다음 턴이 AI면 딜레이 후 턴 처리
+                if (data.players[nextTurn]?.isAI) {
+                    setTimeout(async () => {
+                        aiThinking = false;
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, AI_TURN_DELAY);
+                }
             }
-            
+
             clearSelection();
         } finally {
             isProcessing = false;
@@ -3596,9 +3661,14 @@
             actionModalFocusTrapHandler = null;
         }
 
-        // 포커스를 카드 내기 버튼으로 이동
+        // 포커스를 카드 목록 첫 번째 카드로 이동
         setTimeout(() => {
-            document.getElementById('btn-play')?.focus();
+            const firstCard = document.getElementById('card-0');
+            if (firstCard) {
+                firstCard.focus();
+            } else {
+                document.getElementById('btn-play')?.focus();
+            }
         }, 50);
 
         announce('취소되었습니다.');
@@ -3629,9 +3699,14 @@
 
         await autoMine();
 
-        // 포커스를 카드 내기 버튼으로 이동
+        // 포커스를 카드 목록 첫 번째 카드로 이동
         setTimeout(() => {
-            document.getElementById('btn-play')?.focus();
+            const firstCard = document.getElementById('card-0');
+            if (firstCard) {
+                firstCard.focus();
+            } else {
+                document.getElementById('btn-play')?.focus();
+            }
         }, 100);
     }
     window.doModalMine = doModalMine;
@@ -3660,9 +3735,14 @@
 
         await doReturn();
 
-        // 포커스를 카드 내기 버튼으로 이동
+        // 포커스를 카드 목록 첫 번째 카드로 이동
         setTimeout(() => {
-            document.getElementById('btn-play')?.focus();
+            const firstCard = document.getElementById('card-0');
+            if (firstCard) {
+                firstCard.focus();
+            } else {
+                document.getElementById('btn-play')?.focus();
+            }
         }, 100);
     }
     window.doModalReturn = doModalReturn;
@@ -4423,7 +4503,13 @@
                     await update(ref(db, `rooms/${currentRoom}/gameState`), {
                         currentTurn: nextTurn
                     });
-                    setTimeout(() => processAITurn(freshData), AI_TURN_DELAY);
+                    // 최신 데이터로 다음 AI 턴 처리
+                    setTimeout(async () => {
+                        const snapshot = await get(ref(db, `rooms/${currentRoom}`));
+                        if (snapshot.exists()) {
+                            processAITurn(snapshot.val());
+                        }
+                    }, AI_TURN_DELAY);
                     return;
                 }
                 
