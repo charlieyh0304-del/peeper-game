@@ -646,6 +646,9 @@
 <div id="live-announcer-1" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 <div id="live-announcer-2" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
+<!-- 포커스 흡수용 (화면 낭독기가 읽지 않음, 모든 컨테이너 바깥) -->
+<div id="focus-sink" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;"></div>
+
 <!-- ==================== 로비 화면 ==================== -->
 <div id="lobby" role="main" aria-labelledby="lobby-title">
     <h1 id="lobby-title">🎲 피퍼 온라인</h1>
@@ -795,9 +798,6 @@
 
 <!-- ==================== 게임 화면 ==================== -->
 <div id="game-container" role="main" aria-labelledby="game-title">
-    <!-- 포커스 흡수용 (화면 낭독기가 읽지 않음) -->
-    <div id="focus-sink" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;"></div>
-
     <h1 id="game-title">🎲 피퍼 온라인</h1>
     
     <!-- 관전 모드 배너 -->
