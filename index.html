@@ -3342,11 +3342,9 @@
             }, AI_TURN_DELAY);
         }
 
-        // 카드 낸 후 포커스를 게임 컨테이너로 이동 (버튼 비활성화로 인한 포커스 초기화 방지)
-        const gameContainer = document.getElementById('game-container');
-        if (gameContainer) {
-            gameContainer.setAttribute('tabindex', '-1');
-            gameContainer.focus();
+        // 카드 낸 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
+        if (document.activeElement) {
+            document.activeElement.blur();
         }
         // skipFocusRestore는 내 차례가 다시 돌아올 때까지 유지
     }
@@ -3379,11 +3377,9 @@
                 });
                 clearSelection();
 
-                // 패스 후 포커스를 게임 컨테이너로 이동
-                const gameContainer = document.getElementById('game-container');
-                if (gameContainer) {
-                    gameContainer.setAttribute('tabindex', '-1');
-                    gameContainer.focus();
+                // 패스 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
+                if (document.activeElement) {
+                    document.activeElement.blur();
                 }
 
                 // 다음 턴이 AI면 딜레이 후 턴 처리
@@ -3450,11 +3446,9 @@
 
             clearSelection();
 
-            // 패스 후 포커스를 게임 컨테이너로 이동 (버튼에서 포커스 이탈 방지)
-            const gameContainer = document.getElementById('game-container');
-            if (gameContainer) {
-                gameContainer.setAttribute('tabindex', '-1');
-                gameContainer.focus();
+            // 패스 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
+            if (document.activeElement) {
+                document.activeElement.blur();
             }
         } finally {
             isProcessing = false;
