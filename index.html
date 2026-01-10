@@ -2572,10 +2572,11 @@
         const wasInHand = activeElement && activeElement.classList.contains('card');
         const savedFocusIndex = wasInHand ? currentFocusIndex : -1;
 
-        // 내 차례가 아닐 때 포커스가 카드 영역에 있으면, DOM 업데이트 전에 포커스를 밖으로 이동
-        // (화면 낭독기가 새 카드를 읽는 것 방지)
+        // 내 차례가 아닐 때 포커스가 카드 영역에 있으면, DOM 업데이트 전에 포커스를 버튼으로 이동
+        // (화면 낭독기가 새 카드나 페이지 구조를 읽는 것 방지)
         if (!isMyTurnNow && wasInHand) {
-            activeElement.blur();
+            const playBtn = document.getElementById('btn-play');
+            if (playBtn) playBtn.focus();
         }
 
         handDiv.innerHTML = '';
