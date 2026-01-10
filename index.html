@@ -795,7 +795,9 @@
 
 <!-- ==================== 게임 화면 ==================== -->
 <div id="game-container" role="main" aria-labelledby="game-title">
-    
+    <!-- 포커스 흡수용 (화면 낭독기가 읽지 않음) -->
+    <div id="focus-sink" tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;"></div>
+
     <h1 id="game-title">🎲 피퍼 온라인</h1>
     
     <!-- 관전 모드 배너 -->
@@ -3342,10 +3344,9 @@
             }, AI_TURN_DELAY);
         }
 
-        // 카드 낸 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
-        if (document.activeElement) {
-            document.activeElement.blur();
-        }
+        // 카드 낸 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
+        const focusSink = document.getElementById('focus-sink');
+        if (focusSink) focusSink.focus();
         // skipFocusRestore는 내 차례가 다시 돌아올 때까지 유지
     }
 
@@ -3377,10 +3378,9 @@
                 });
                 clearSelection();
 
-                // 패스 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
-                if (document.activeElement) {
-                    document.activeElement.blur();
-                }
+                // 패스 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
+                const focusSink = document.getElementById('focus-sink');
+                if (focusSink) focusSink.focus();
 
                 // 다음 턴이 AI면 딜레이 후 턴 처리
                 if (data.players[nextTurn]?.isAI) {
@@ -3446,10 +3446,9 @@
 
             clearSelection();
 
-            // 패스 후 현재 포커스 해제 (화면 낭독기가 다른 요소를 읽지 않도록)
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }
+            // 패스 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
+            const focusSink = document.getElementById('focus-sink');
+            if (focusSink) focusSink.focus();
         } finally {
             isProcessing = false;
         }
