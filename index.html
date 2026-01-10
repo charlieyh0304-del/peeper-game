@@ -2457,6 +2457,8 @@
         if (justBecameMyTurn) {
             playSound('myturn');
             setPageTitle('myturn');
+            // 내 차례가 시작되면 포커스 복원 허용
+            skipFocusRestore = false;
         } else if (!isSpectator && wasMyTurn && !isMyTurn) {
             // 내 차례가 끝났을 때
             setPageTitle('playing');
@@ -2561,12 +2563,19 @@
 
     function renderHand() {
         const handDiv = document.getElementById('player-hand');
-        
+        const isMyTurnNow = currentTurn === myPlayerId;
+
         // 현재 포커스가 카드 영역에 있는지 확인
         const activeElement = document.activeElement;
         const wasInHand = activeElement && activeElement.classList.contains('card');
         const savedFocusIndex = wasInHand ? currentFocusIndex : -1;
-        
+
+        // 내 차례가 아닐 때 포커스가 카드 영역에 있으면, DOM 업데이트 전에 포커스를 밖으로 이동
+        // (화면 낭독기가 새 카드를 읽는 것 방지)
+        if (!isMyTurnNow && wasInHand) {
+            activeElement.blur();
+        }
+
         handDiv.innerHTML = '';
         
         // currentFocusIndex가 범위를 벗어나면 조정
@@ -2612,8 +2621,9 @@
             handDiv.appendChild(card);
         });
         
-        // 포커스가 카드 영역에 있었으면 복원 (단, skipFocusRestore가 true면 건너뜀)
-        if (savedFocusIndex >= 0 && myHand.length > 0 && !skipFocusRestore) {
+        // 포커스가 카드 영역에 있었으면 복원
+        // 단, skipFocusRestore가 true이거나 내 차례가 아니면 건너뜀 (화면 낭독기 패 정보 읽힘 방지)
+        if (savedFocusIndex >= 0 && myHand.length > 0 && !skipFocusRestore && isMyTurnNow) {
             const newFocusIndex = Math.min(savedFocusIndex, myHand.length - 1);
             const cardToFocus = document.getElementById(`card-${newFocusIndex}`);
             if (cardToFocus) {
@@ -2670,15 +2680,17 @@
                         document.removeEventListener('keydown', actionModalFocusTrapHandler);
                         actionModalFocusTrapHandler = null;
                     }
-                    // 포커스를 카드 목록 첫 번째 카드로 이동
-                    setTimeout(() => {
-                        const firstCard = document.getElementById('card-0');
-                        if (firstCard) firstCard.focus();
-                    }, 50);
+                    // 내 차례일 때만 포커스를 카드 목록으로 이동 (화면 낭독기 패 정보 읽힘 방지)
+                    if (currentTurn === myPlayerId) {
+                        setTimeout(() => {
+                            const firstCard = document.getElementById('card-0');
+                            if (firstCard) firstCard.focus();
+                        }, 50);
+                    }
                 }
             }
         }
-        
+
         // 리턴 버튼 표시 (마인 페어 바닥에 같은 숫자 싱글이 있을 때, 단 마인한 본인 제외)
         const returnBtn = document.getElementById('btn-return');
         if (returnBtn) {
@@ -2718,11 +2730,13 @@
                         document.removeEventListener('keydown', actionModalFocusTrapHandler);
                         actionModalFocusTrapHandler = null;
                     }
-                    // 포커스를 카드 목록 첫 번째 카드로 이동
-                    setTimeout(() => {
-                        const firstCard = document.getElementById('card-0');
-                        if (firstCard) firstCard.focus();
-                    }, 50);
+                    // 내 차례일 때만 포커스를 카드 목록으로 이동 (화면 낭독기 패 정보 읽힘 방지)
+                    if (currentTurn === myPlayerId) {
+                        setTimeout(() => {
+                            const firstCard = document.getElementById('card-0');
+                            if (firstCard) firstCard.focus();
+                        }, 50);
+                    }
                 }
                 // return-panel도 숨기기
                 const returnPanel = document.getElementById('return-panel');
@@ -3328,21 +3342,13 @@
             }, AI_TURN_DELAY);
         }
 
-        // 카드 낸 후 포커스를 카드 목록의 첫 번째 카드로 이동 (알림 끊김 방지를 위해 지연)
-        setTimeout(() => {
-            skipFocusRestore = false;
-            // 카드 목록의 첫 번째 카드로 포커스 이동
-            const firstCard = document.getElementById('card-0');
-            if (firstCard) {
-                firstCard.focus();
-            } else {
-                // 카드가 없으면 카드 내기 버튼으로
-                const playBtn = document.getElementById('btn-play');
-                if (playBtn && !playBtn.disabled) {
-                    playBtn.focus();
-                }
-            }
-        }, 500);
+        // 카드 낸 후 포커스를 게임 컨테이너로 이동 (버튼 비활성화로 인한 포커스 초기화 방지)
+        const gameContainer = document.getElementById('game-container');
+        if (gameContainer) {
+            gameContainer.setAttribute('tabindex', '-1');
+            gameContainer.focus();
+        }
+        // skipFocusRestore는 내 차례가 다시 돌아올 때까지 유지
     }
 
     // ==================== 패스 ====================
@@ -3372,6 +3378,13 @@
                     passedBy: myPlayerId
                 });
                 clearSelection();
+
+                // 패스 후 포커스를 게임 컨테이너로 이동
+                const gameContainer = document.getElementById('game-container');
+                if (gameContainer) {
+                    gameContainer.setAttribute('tabindex', '-1');
+                    gameContainer.focus();
+                }
 
                 // 다음 턴이 AI면 딜레이 후 턴 처리
                 if (data.players[nextTurn]?.isAI) {
@@ -3436,11 +3449,18 @@
             }
 
             clearSelection();
+
+            // 패스 후 포커스를 게임 컨테이너로 이동 (버튼에서 포커스 이탈 방지)
+            const gameContainer = document.getElementById('game-container');
+            if (gameContainer) {
+                gameContainer.setAttribute('tabindex', '-1');
+                gameContainer.focus();
+            }
         } finally {
             isProcessing = false;
         }
     }
-    
+
     // 3카드 알림
     async function callCards() {
         if (myHand.length !== 3) return;
@@ -4581,6 +4601,118 @@
         return topMoves[Math.floor(Math.random() * topMoves.length)];
     }
     
+    // =============================================
+    // AI 분석 헬퍼 함수들
+    // =============================================
+
+    // 게임 단계 판단 (1=초반, 2=중반, 3=후반)
+    function getGamePhase(roomData) {
+        const hands = roomData.gameState.hands || {};
+        const totalCards = Object.values(hands).reduce((sum, h) => sum + (h?.length || 0), 0);
+        const playerCount = Object.keys(hands).length;
+        const avgCards = totalCards / playerCount;
+
+        if (avgCards >= 12) return 1;  // 초반: 평균 12장 이상
+        if (avgCards >= 6) return 2;   // 중반: 평균 6~11장
+        return 3;                       // 후반: 평균 5장 이하
+    }
+
+    // 상대방 위험도 분석 (0~100)
+    function analyzeOpponentThreat(roomData, myId) {
+        const hands = roomData.gameState.hands || {};
+        let maxThreat = 0;
+        let threatPlayerId = null;
+
+        for (const [playerId, hand] of Object.entries(hands)) {
+            if (playerId === myId) continue;
+            if (!hand || hand.length === 0) continue;
+
+            // 패가 적을수록 위험
+            let threat = 0;
+            if (hand.length <= 2) threat = 100;
+            else if (hand.length <= 4) threat = 80;
+            else if (hand.length <= 6) threat = 60;
+            else if (hand.length <= 8) threat = 40;
+            else threat = 20;
+
+            if (threat > maxThreat) {
+                maxThreat = threat;
+                threatPlayerId = playerId;
+            }
+        }
+
+        return { maxThreat, threatPlayerId };
+    }
+
+    // 마인 성공 확률 추정 (상대가 리턴 카드를 가질 확률)
+    function estimateMineSuccessRate(mineVal, roomData, myId, myHand) {
+        const hands = roomData.gameState.hands || {};
+
+        // 이 값의 총 카드 4장 중 내가 몇 장 가지고 있는지
+        const myCount = myHand.filter(c => getCardValue(c) === mineVal).length;
+        const remaining = 4 - myCount;  // 남은 카드 수 (0~2장이 상대에게)
+
+        if (remaining === 0) return 100;  // 상대에게 리턴 카드 없음
+
+        // 상대방 총 패 수
+        let totalOpponentCards = 0;
+        for (const [id, h] of Object.entries(hands)) {
+            if (id !== myId && h) totalOpponentCards += h.length;
+        }
+
+        // 상대가 리턴 카드 가질 확률 (단순 추정)
+        const returnProb = Math.min(remaining * 100 / Math.max(totalOpponentCards, 1), 80);
+        return Math.max(100 - returnProb, 20);  // 최소 20% 성공률
+    }
+
+    // 고가치 카드 분석 (K, A, 2 보유 현황)
+    function analyzeHighCards(hand) {
+        const highCards = { 13: 0, 14: 0, 15: 0, 16: 0 };  // K, A, 2 (2는 16)
+        const pairs = { 13: false, 14: false, 15: false, 16: false };
+
+        for (const card of hand) {
+            const val = getCardValue(card);
+            if (val >= 13) {
+                highCards[val] = (highCards[val] || 0) + 1;
+                if (highCards[val] >= 2) pairs[val] = true;
+            }
+        }
+
+        return { highCards, pairs };
+    }
+
+    // 다음 플레이어가 위험한지 확인
+    function isNextPlayerDangerous(roomData, currentPlayerId) {
+        const nextId = getNextTurnFrom(currentPlayerId, roomData);
+        const nextHand = roomData.gameState.hands?.[nextId];
+        return nextHand && nextHand.length <= 4;
+    }
+
+    // 내 패에서 스트레이트 조합 가능성 분석
+    function analyzeStrategicPotential(hand) {
+        const valueCounts = {};
+        for (const card of hand) {
+            const val = getCardValue(card);
+            valueCounts[val] = (valueCounts[val] || 0) + 1;
+        }
+
+        const values = Object.keys(valueCounts).map(Number).sort((a, b) => a - b);
+        let straightPotential = 0;
+        let pairStraightPotential = 0;
+
+        // 연속 값 체크
+        for (let i = 0; i < values.length - 2; i++) {
+            if (values[i] + 1 === values[i + 1] && values[i + 1] + 1 === values[i + 2]) {
+                straightPotential++;
+                if (valueCounts[values[i]] >= 2 && valueCounts[values[i + 1]] >= 2 && valueCounts[values[i + 2]] >= 2) {
+                    pairStraightPotential++;
+                }
+            }
+        }
+
+        return { straightPotential, pairStraightPotential, valueCounts };
+    }
+
     // 모든 유효한 수 찾기
     function getAllValidMoves(hand, lastMove) {
         const validMoves = [];
@@ -4713,110 +4845,293 @@
         return validMoves;
     }
     
-    // 수 평가 (높을수록 좋음)
+    // 수 평가 (높을수록 좋음) - 개선된 AI 전략
     function evaluateMove(moveData, hand, lastMove, roomData) {
         const { move, cards, indices } = moveData;
         let score = 100;  // 기본 점수
-        
-        // 1. 낮은 값 카드 사용 = 높은 점수 (높은 카드 보존)
-        score += (16 - move.val) * 5;
-        
-        // 2. 여러 장 한번에 내면 좋음 (패 빨리 줄이기)
-        score += move.cnt * 8;
-        
-        // 3. 폭탄은 점수 낮춤 (나중에 쓰려고 보존)
-        if (move.type === 'BOMB') {
-            score -= 30;
-        }
-        if (move.type === 'BOMB_TWO') {
-            score -= 50;
-        }
-        
-        // 4. 스트레이트는 좋음 (여러 장 처리)
-        if (move.type === 'STRAIGHT') {
+        const currentPlayerId = roomData?.gameState?.currentTurn;
+
+        // === 게임 상태 분석 ===
+        const gamePhase = roomData ? getGamePhase(roomData) : 2;
+        const { maxThreat } = roomData && currentPlayerId
+            ? analyzeOpponentThreat(roomData, currentPlayerId)
+            : { maxThreat: 0 };
+        const highCardInfo = analyzeHighCards(hand);
+        const nextDangerous = roomData && currentPlayerId
+            ? isNextPlayerDangerous(roomData, currentPlayerId)
+            : false;
+
+        // === 1. 기본 카드 가치 평가 ===
+        // 낮은 값 카드 우선 (높은 카드 보존)
+        score += (16 - move.val) * 4;
+
+        // 여러 장 한번에 내면 좋음 (패 빨리 줄이기)
+        score += move.cnt * 6;
+
+        // === 2. 게임 단계별 전략 ===
+        if (gamePhase === 1) {
+            // 초반: 낮은 카드 적극 처리, 폭탄 보존
+            if (move.val <= 6) score += 15;
+            if (move.type === 'BOMB') score -= 40;
+            if (move.type === 'BOMB_TWO') score -= 60;
+
+            // 초반에 스트레이트로 낮은 카드 정리하면 좋음
+            if (move.type === 'STRAIGHT' && move.val <= 8) score += 25;
+            if (move.type === 'PAIR_STRAIGHT' && move.val <= 7) score += 30;
+
+        } else if (gamePhase === 2) {
+            // 중반: 균형 잡힌 플레이
+            if (move.type === 'BOMB') score -= 20;
+            if (move.type === 'BOMB_TWO') score -= 35;
+            if (move.type === 'STRAIGHT') score += 15;
+            if (move.type === 'PAIR_STRAIGHT') score += 20;
+
+        } else {
+            // 후반: 공격적 플레이, 폭탄 적극 활용
             score += 15;
-        }
-        
-        // 4-1. 페어 스트레이트도 좋음
-        if (move.type === 'PAIR_STRAIGHT') {
-            score += 20;
-        }
-        
-        // 4-2. 마인은 매우 좋음 (선 가져옴)
-        if (move.isMine) {
-            score += 50;
-        }
-        
-        // 4-3. 리턴도 좋음 (선 가져옴)
-        if (move.isReturn) {
-            score += 50;
-        }
-        
-        // 5. 바닥이 없으면 (새 턴) 낮은 싱글 우선
-        if (!lastMove) {
-            if (move.type === 'SINGLE' && move.val <= 5) {
-                score += 20;
+            if (move.type === 'BOMB') score += 25;
+            if (move.type === 'BOMB_TWO') score += 40;
+
+            // 후반에 낮은 싱글은 좋지 않음 (선을 빼앗김)
+            if (move.type === 'SINGLE' && move.val <= 5 && hand.length > 3) {
+                score -= 20;
             }
         }
-        
-        // 6. 바닥을 겨우 이기는 게 좋음 (카드 낭비 방지)
+
+        // === 3. 고가치 카드 관리 (K, A, 2) ===
+        if (move.val >= 13) {
+            if (gamePhase === 1) {
+                // 초반에 고가치 카드 사용은 감점
+                score -= 25;
+            } else if (gamePhase === 2 && hand.length > 5) {
+                // 중반에도 패가 많으면 아끼기
+                score -= 15;
+            }
+
+            // 2(16)는 가장 강력한 카드 - 더 신중하게
+            if (move.val === 16) {
+                if (hand.length > 4) score -= 20;
+
+                // 하지만 페어 2로 막을 수 있으면 좋음
+                if (move.type === 'PAIR' && highCardInfo.pairs[16]) {
+                    score += 10;  // 마인 가능
+                }
+            }
+        }
+
+        // === 4. 마인/리턴 전략 ===
+        if (move.isMine) {
+            // 마인 성공률 계산
+            const successRate = roomData && currentPlayerId
+                ? estimateMineSuccessRate(move.val, roomData, currentPlayerId, hand)
+                : 50;
+
+            // 성공률에 따른 점수 조정
+            if (successRate >= 80) {
+                score += 60;  // 거의 확실한 마인
+            } else if (successRate >= 50) {
+                score += 35;  // 괜찮은 마인
+            } else {
+                score += 15;  // 위험한 마인 (리턴당할 확률 높음)
+            }
+
+            // 후반에 마인은 더 가치있음
+            if (gamePhase === 3) score += 20;
+        }
+
+        if (move.isReturn) {
+            score += 55;  // 리턴은 항상 좋음 (선 확보)
+            if (gamePhase === 3) score += 15;  // 후반 리턴은 더 가치있음
+        }
+
+        // === 5. 새 턴 시작 전략 (바닥 없을 때) ===
+        if (!lastMove) {
+            if (gamePhase === 1 || gamePhase === 2) {
+                // 초/중반: 낮은 싱글로 시작
+                if (move.type === 'SINGLE' && move.val <= 5) score += 25;
+                if (move.type === 'SINGLE' && move.val <= 8) score += 15;
+
+                // 스트레이트로 여러 장 정리 가능하면 좋음
+                if (move.type === 'STRAIGHT') score += 20;
+                if (move.type === 'PAIR_STRAIGHT') score += 25;
+            } else {
+                // 후반: 높은 카드로 선 유지
+                if (move.val >= 12) score += 20;
+                if (move.type === 'PAIR' && move.val >= 13) score += 25;
+            }
+
+            // 페어로 시작하면 마인 위험 - 패가 많을 때만
+            if (move.type === 'PAIR' && hand.length > 6) {
+                score += 10;
+            }
+        }
+
+        // === 6. 효율적인 카드 사용 ===
         if (lastMove && move.type === lastMove.type) {
             const valueDiff = move.val - lastMove.val;
             if (valueDiff === 1) {
-                score += 15;  // 딱 1 차이로 이기면 보너스
-            } else if (valueDiff > 3) {
-                score -= 10;  // 너무 높은 카드로 이기면 감점
+                score += 20;  // 딱 1 차이로 이기면 최고
+            } else if (valueDiff === 2) {
+                score += 10;  // 2 차이도 괜찮음
+            } else if (valueDiff >= 4) {
+                score -= 15;  // 너무 높은 카드는 낭비
             }
         }
-        
-        // 7. 내 패가 적으면 공격적으로
-        if (hand.length <= 5) {
+
+        // === 7. 상대방 위험도 대응 ===
+        if (maxThreat >= 80) {
+            // 상대가 매우 위험 (2~4장)
+            score += 20;  // 더 적극적으로 카드 내기
+            if (move.type === 'BOMB') score += 50;
+            if (move.type === 'BOMB_TWO') score += 70;
+
+            // 높은 카드로 막아야 함
+            if (move.val >= 13) score += 15;
+
+        } else if (maxThreat >= 60) {
+            // 상대가 위험 (5~6장)
             score += 10;
-            // 패가 적을 때는 폭탄 사용 OK
-            if (move.type === 'BOMB') score += 20;
-            if (move.type === 'BOMB_TWO') score += 30;
+            if (move.type === 'BOMB') score += 25;
+            if (move.type === 'BOMB_TWO') score += 40;
         }
-        
-        // 8. 상대 중 패가 적은 사람 있으면 폭탄 고려
-        if (roomData) {
-            const opponentHands = Object.entries(roomData.gameState.hands || {})
-                .filter(([id]) => id !== roomData.gameState.currentTurn);
-            
-            const minOpponentCards = Math.min(...opponentHands.map(([_, h]) => h?.length || 99));
-            
-            if (minOpponentCards <= 3) {
-                // 상대가 곧 이길 것 같으면 폭탄 사용!
-                if (move.type === 'BOMB') score += 40;
-                if (move.type === 'BOMB_TWO') score += 60;
+
+        // === 8. 다음 플레이어가 위험하면 높은 카드로 막기 ===
+        if (nextDangerous) {
+            if (move.val >= 12) score += 15;
+            if (move.val >= 14) score += 10;
+
+            // 페어/폭탄으로 막으면 더 좋음
+            if (move.type === 'PAIR' && move.val >= 12) score += 15;
+            if (move.type === 'BOMB') score += 30;
+            if (move.type === 'BOMB_TWO') score += 45;
+        }
+
+        // === 9. 내 패가 적을 때 마무리 전략 ===
+        if (hand.length <= 4) {
+            score += 20;
+
+            // 후반에 싱글은 선을 뺏길 위험
+            if (move.type === 'SINGLE' && move.val <= 10) {
+                score -= 10;
+            }
+
+            // 폭탄으로 확실하게 이기기
+            if (move.type === 'BOMB') score += 35;
+            if (move.type === 'BOMB_TWO') score += 50;
+
+            // 마지막 카드가 높으면 좋음
+            const remainingCards = hand.filter((_, i) => !indices.includes(i));
+            if (remainingCards.length > 0) {
+                const maxRemaining = Math.max(...remainingCards.map(getCardValue));
+                if (maxRemaining >= 13) score += 10;  // 높은 카드가 남음
             }
         }
-        
+
+        // === 10. 전략적 조합 보존 ===
+        if (gamePhase <= 2 && hand.length > 6) {
+            const potential = analyzeStrategicPotential(hand);
+
+            // 스트레이트 조합 가능성이 있으면 그 카드 보존
+            if (potential.straightPotential > 0) {
+                // 스트레이트에 필요한 카드를 싱글로 내면 감점
+                if (move.type === 'SINGLE') {
+                    const val = move.val;
+                    if (potential.valueCounts[val - 1] && potential.valueCounts[val + 1]) {
+                        score -= 15;  // 스트레이트 중간 카드
+                    }
+                }
+            }
+        }
+
         return score;
     }
     
-    // 패스할지 결정
+    // 패스할지 결정 - 개선된 전략
     function shouldPass(hand, lastMove, roomData) {
         // 바닥이 없으면 무조건 내야 함
         if (!lastMove) return false;
-        
+
         const validMoves = getAllValidMoves(hand, lastMove);
-        
+
         // 낼 수 있는 카드가 없으면 패스
         if (validMoves.length === 0) return true;
-        
-        // 폭탄만 있고, 내 패가 많으면 패스 (폭탄 보존)
-        const nonBombMoves = validMoves.filter(m => m.move.type !== 'BOMB' && m.move.type !== 'BOMB_TWO');
-        if (nonBombMoves.length === 0 && hand.length > 8) {
-            return true;  // 폭탄 아껴두기
+
+        // 게임 상태 분석
+        const currentPlayerId = roomData?.gameState?.currentTurn;
+        const gamePhase = roomData ? getGamePhase(roomData) : 2;
+        const { maxThreat } = roomData && currentPlayerId
+            ? analyzeOpponentThreat(roomData, currentPlayerId)
+            : { maxThreat: 0 };
+
+        // 상대가 매우 위험하면 (2~4장) 거의 패스 안함
+        if (maxThreat >= 80) {
+            // 폭탄이라도 사용해야 할 수도 있음
+            return false;
         }
-        
-        // 높은 카드만 낼 수 있고, 바닥이 낮으면 패스 고려
+
+        // 상대가 위험하면 (5~6장) 패스 기준 엄격하게
+        if (maxThreat >= 60) {
+            // 낼 수 있으면 거의 냄
+            return validMoves.length === 0;
+        }
+
+        // 폭탄만 있는 경우 분석
+        const nonBombMoves = validMoves.filter(m =>
+            m.move.type !== 'BOMB' && m.move.type !== 'BOMB_TWO'
+        );
+
+        if (nonBombMoves.length === 0) {
+            // 폭탄만 낼 수 있음
+            if (gamePhase === 1 && hand.length > 6) {
+                return true;  // 초반에는 폭탄 아껴두기
+            }
+            if (gamePhase === 2 && hand.length > 5) {
+                return true;  // 중반에도 패가 많으면 아껴두기
+            }
+            // 후반이거나 패가 적으면 폭탄 사용
+            return false;
+        }
+
+        // 높은 카드만 낼 수 있는 경우 분석
         const minValue = Math.min(...validMoves.map(m => m.move.val));
-        if (minValue >= 13 && lastMove.val <= 8 && hand.length > 5) {
-            // 50% 확률로 패스 (너무 예측 가능하지 않게)
-            return Math.random() < 0.5;
+        const valueDiff = minValue - lastMove.val;
+
+        // 초반/중반에 높은 카드 낭비 방지
+        if (gamePhase <= 2) {
+            // K 이상만 낼 수 있고, 바닥이 낮으면 패스 고려
+            if (minValue >= 13 && lastMove.val <= 7) {
+                if (hand.length > 6) return true;
+                if (hand.length > 4) return Math.random() < 0.6;
+            }
+
+            // A나 2만 낼 수 있고, 바닥이 10 이하면 거의 패스
+            if (minValue >= 14 && lastMove.val <= 10 && hand.length > 4) {
+                return Math.random() < 0.75;
+            }
+
+            // 너무 큰 차이로 이겨야 하면 패스 고려 (4 이상 차이)
+            if (valueDiff >= 4 && minValue >= 10 && hand.length > 5) {
+                return Math.random() < 0.4;
+            }
         }
-        
+
+        // 후반에는 거의 패스 안함
+        if (gamePhase === 3) {
+            // 패가 적으면 거의 항상 냄
+            if (hand.length <= 4) return false;
+
+            // 2만 낼 수 있고 바닥이 낮으면 패스 고려
+            if (minValue === 16 && lastMove.val <= 8) {
+                return Math.random() < 0.3;
+            }
+        }
+
+        // 내가 마지막 패를 낸 경우 (선 유지 중)
+        if (roomData?.gameState?.lastMoveBy === currentPlayerId) {
+            // 다른 사람이 다 패스해서 다시 내 턴 → 무조건 냄
+            return false;
+        }
+
         return false;
     }
     
