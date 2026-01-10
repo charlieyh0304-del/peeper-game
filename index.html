@@ -3210,11 +3210,8 @@
         }
 
         isProcessing = true;  // 즉시 설정하여 중복 호출 방지
-        
-        // 버튼도 비활성화하여 중복 클릭 방지
-        const playBtn = document.getElementById('btn-play');
-        if (playBtn) playBtn.disabled = true;
-        
+        // 버튼 비활성화 제거 - 포커스 이동으로 인한 화면 낭독기 문제 방지
+
         try {
             if (currentTurn !== myPlayerId) {
                 console.log('playMove: not my turn', currentTurn, myPlayerId);
@@ -3285,9 +3282,6 @@
             }
         } finally {
             isProcessing = false;
-            // 버튼 재활성화 (내 턴일 때만)
-            const playBtn = document.getElementById('btn-play');
-            if (playBtn && currentTurn === myPlayerId) playBtn.disabled = false;
         }
     }
 
@@ -3344,9 +3338,6 @@
             }, AI_TURN_DELAY);
         }
 
-        // 카드 낸 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
-        const focusSink = document.getElementById('focus-sink');
-        if (focusSink) focusSink.focus();
         // skipFocusRestore는 내 차례가 다시 돌아올 때까지 유지
     }
 
@@ -3377,10 +3368,6 @@
                     passedBy: myPlayerId
                 });
                 clearSelection();
-
-                // 패스 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
-                const focusSink = document.getElementById('focus-sink');
-                if (focusSink) focusSink.focus();
 
                 // 다음 턴이 AI면 딜레이 후 턴 처리
                 if (data.players[nextTurn]?.isAI) {
@@ -3445,10 +3432,6 @@
             }
 
             clearSelection();
-
-            // 패스 후 포커스를 숨겨진 요소로 이동 (화면 낭독기가 읽지 않음)
-            const focusSink = document.getElementById('focus-sink');
-            if (focusSink) focusSink.focus();
         } finally {
             isProcessing = false;
         }
